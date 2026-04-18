@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin — Cerrajería Express</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🔑</span>
+      <div>
+        <h1>Cerrajería Express</h1>
+        <span class="subtitle">Panel de Administración</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="sse-badge" class="badge badge-off">● Sin conexión</span>
+      <span class="time" id="clock"></span>
+    </div>
+  </header>
+
+  <!-- ── Stats ───────────────────────────────────────────────────────────────── -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <span class="stat-num" id="stat-total">0</span>
+      <span class="stat-label">Total servicios</span>
+    </div>
+    <div class="stat-card warning">
+      <span class="stat-num" id="stat-pendientes">0</span>
+      <span class="stat-label">Pendientes</span>
+    </div>
+    <div class="stat-card info">
+      <span class="stat-num" id="stat-en-camino">0</span>
+      <span class="stat-label">En camino</span>
+    </div>
+    <div class="stat-card danger">
+      <span class="stat-num" id="stat-emergencias">0</span>
+      <span class="stat-label">Emergencias</span>
+    </div>
+    <div class="stat-card success">
+      <span class="stat-num" id="stat-completados">0</span>
+      <span class="stat-label">Completados hoy</span>
+    </div>
+  </div>
+
+  <!-- ── Tabs ────────────────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="servicios">Servicios</button>
+    <button class="tab-btn" data-tab="cerrajeros">Cerrajeros</button>
+    <button class="tab-btn" data-tab="catalogo">Catálogo de Precios</button>
+  </div>
+
+  <!-- ── Tab: Servicios ──────────────────────────────────────────────────────── -->
+  <section id="tab-servicios" class="tab-content active">
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="🔍  Buscar por nombre, teléfono o ubicación..." autocomplete="off">
+      <select id="filter-estado">
+        <option value="">Todos los estados</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="en_camino">En camino</option>
+        <option value="completado">Completado</option>
+        <option value="cancelado">Cancelado</option>
+      </select>
+    </div>
+    <div id="servicios-grid" class="cards-grid">
+      <div class="empty-state" id="empty-servicios">
+        <span>📋</span>
+        <p>No hay servicios registrados aún.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Tab: Cerrajeros ─────────────────────────────────────────────────────── -->
+  <section id="tab-cerrajeros" class="tab-content">
+    <div id="cerrajeros-grid" class="cards-grid cerrajeros-grid"></div>
+  </section>
+
+  <!-- ── Tab: Catálogo de Precios ───────────────────────────────────────────── -->
+  <section id="tab-catalogo" class="tab-content">
+
+    <!-- Formulario agregar/editar -->
+    <div class="catalogo-form-card" id="catalogo-form-card">
+      <h3 id="catalogo-form-title">Agregar servicio</h3>
+      <div class="catalogo-form-grid">
+        <div class="form-group">
+          <label>Emoji</label>
+          <input type="text" id="cat-emoji" placeholder="🔑" maxlength="2">
+        </div>
+        <div class="form-group" style="flex:3">
+          <label>Nombre del servicio</label>
+          <input type="text" id="cat-nombre" placeholder="Ej. Apertura de maletero">
+        </div>
+        <div class="form-group">
+          <label>Precio base ($)</label>
+          <input type="number" id="cat-precio-base" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>Precio emergencia ($)</label>
+          <input type="number" id="cat-precio-emergencia" placeholder="0.00" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="catalogo-form-actions">
+        <button class="btn btn-primary" id="cat-save-btn">Guardar servicio</button>
+        <button class="btn btn-ghost" id="cat-cancel-btn" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+
+    <!-- Lista de servicios del catálogo -->
+    <div class="catalogo-table-wrap">
+      <table class="catalogo-table" id="catalogo-table">
+        <thead>
+          <tr>
+            <th>Servicio</th>
+            <th>Precio base</th>
+            <th>Precio emergencia</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="catalogo-tbody"></tbody>
+      </table>
+    </div>
+
+  </section>
+
+  <!-- ── Modal detalle ───────────────────────────────────────────────────────── -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <button class="modal-close" id="modal-close">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ── Toast ───────────────────────────────────────────────────────────────── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

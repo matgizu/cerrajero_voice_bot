@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cerrajería Express 24/7 — Atención de emergencias de cerrajería con Agente de Voz IA disponible todo el día.">
+  <meta name="theme-color" content="#0a0d12">
+  <title>Cerrajería Express 24/7 — Agente de Voz IA</title>
+  
+  <!-- Favicon inline -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔑</text></svg>" type="image/svg+xml">
+  
+  <!-- Estilos -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Notificación flotante -->
+  <div id="notification" class="notification" role="alert" aria-live="polite"></div>
+
+  <div class="app">
+
+    <!-- ── HEADER ─────────────────────────────────────────────── -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="header-logo" aria-hidden="true">🔑</div>
+        <div>
+          <div class="header-title">Cerrajería Express</div>
+          <div class="header-subtitle">Asistente Virtual 24/7</div>
+        </div>
+      </div>
+
+      <div class="header-status" role="status" aria-label="Estado del sistema">
+        <div id="status-dot" class="status-dot dot--idle" aria-hidden="true"></div>
+        <span id="status-text">Listo para atenderle</span>
+      </div>
+    </header>
+
+    <!-- ── MAIN ───────────────────────────────────────────────── -->
+    <main class="main">
+
+      <!-- Panel central del agente -->
+      <section class="agent-panel" aria-label="Panel del agente de voz">
+
+        <!-- Avatar con anillos animados -->
+        <div class="agent-avatar-container" aria-hidden="true">
+          <div class="avatar-ring"></div>
+          <div class="avatar-ring"></div>
+          <div class="avatar-ring"></div>
+          <div id="agent-avatar" class="agent-avatar">👨‍🔧</div>
+        </div>
+
+        <!-- Info del agente -->
+        <div class="agent-info">
+          <h1 class="agent-name">Asistente de Cerrajería Express</h1>
+          <p class="agent-role">Técnico Virtual Certificado • Powered by ElevenLabs AI</p>
+          <div class="agent-availability" aria-label="Disponible 24/7">
+            <div class="availability-dot" aria-hidden="true"></div>
+            Disponible ahora • 24 hrs / 7 días
+          </div>
+        </div>
+
+        <!-- Temporizador de llamada -->
+        <div class="call-info">
+          <div id="call-timer" class="call-timer" role="timer" aria-label="Duración de la llamada">00:00</div>
+          <div class="status-text" aria-hidden="true" id="call-status-text">Presiona el botón para comenzar</div>
+        </div>
+
+        <!-- Visualizador de voz (waveform) -->
+        <div id="waveform" class="waveform" aria-label="Visualizador de voz" aria-hidden="true">
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+          <div class="waveform__bar"></div>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="btn-group" role="group" aria-label="Controles de llamada">
+          <button
+            id="talk-btn"
+            class="btn btn--primary"
+            aria-label="Iniciar llamada con el asistente de cerrajería"
+            type="button"
+          >
+            <span class="btn-icon" aria-hidden="true">📞</span>
+            <span>Hablar con Cerrajero</span>
+          </button>
+
+          <button
+            id="hangup-btn"
+            class="btn btn--danger"
+            aria-label="Finalizar llamada"
+            type="button"
+            style="display:none"
+          >
+            <span class="btn-icon" aria-hidden="true">📵</span>
+            <span>Colgar</span>
+          </button>
+        </div>
+
+        <!-- Servicios disponibles -->
+        <div class="info-chips" role="list" aria-label="Servicios disponibles">
+          <div class="info-chip" role="listitem">🚪 Apertura de puerta</div>
+          <div class="info-chip" role="listitem">🔑 Duplicado de llaves</div>
+          <div class="info-chip" role="listitem">⚙️ Cambio de cilindro</div>
+          <div class="info-chip" role="listitem">🏦 Cajas fuertes</div>
+          <div class="info-chip" role="listitem">🚗 Emergencia vehicular</div>
+          <div class="info-chip" role="listitem">🔒 Instalación cerraduras</div>
+        </div>
+
+      </section>
+
+      <!-- Panel lateral -->
+      <aside class="side-panel" aria-label="Panel de transcripciones y servicios">
+
+        <!-- Transcripción — Usuario -->
+        <div class="card" aria-label="Lo que dices">
+          <div class="card-header">
+            <span class="card-header-icon" aria-hidden="true">🎤</span>
+            Lo que dices
+          </div>
+          <div id="transcript-input" class="transcript-container" role="log" aria-label="Transcripción del usuario" aria-live="polite"></div>
+        </div>
+
+        <!-- Transcripción — Agente -->
+        <div class="card" aria-label="Respuesta del agente">
+          <div class="card-header">
+            <span class="card-header-icon" aria-hidden="true">🤖</span>
+            Agente
+          </div>
+          <div id="transcript-output" class="transcript-container" role="log" aria-label="Transcripción del agente" aria-live="polite"></div>
+        </div>
+
+        <!-- Tarjeta de costo estimado -->
+        <div id="cost-card" class="card cost-card">
+          <div class="card-header">
+            <span class="card-header-icon" aria-hidden="true">💰</span>
+            Costo Estimado (llamada)
+          </div>
+          <div class="cost-body">
+            <div class="cost-row">
+              <span class="cost-label">Audio entrada</span>
+              <span id="cost-input-sec" class="cost-value">0.0 s</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-label">Audio salida</span>
+              <span id="cost-output-sec" class="cost-value">0.0 s</span>
+            </div>
+            <div class="cost-divider"></div>
+            <div class="cost-row cost-row--total">
+              <span class="cost-label">Total estimado</span>
+              <span id="cost-total" class="cost-total">$0.0000000</span>
+            </div>
+            <p class="cost-note">Estimado basado en ~$0.35/1M tokens entrada · $1.05/1M tokens salida · 25 tokens/seg</p>
+          </div>
+        </div>
+
+        <!-- Tarjeta de servicio (oculta hasta que se guarda) -->
+        <div id="service-card" class="card service-card" aria-label="Servicio registrado" aria-live="assertive">
+          <div class="card-header">
+            <span class="card-header-icon" aria-hidden="true">📋</span>
+            Servicio Registrado
+          </div>
+          <div id="service-details" class="service-details"></div>
+        </div>
+
+      </aside>
+    </main>
+
+    <!-- ── FOOTER ─────────────────────────────────────────────── -->
+    <footer class="footer">
+      <p>🔐 Cerrajería Express 24/7 • Agente de Voz IA • Powered by <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer">ElevenLabs Conversational AI</a></p>
+    </footer>
+
+  </div>
+
+  <!-- Script principal -->
+  <script src="app.js"></script>
+</body>
+</html>

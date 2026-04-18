@@ -1,0 +1,58 @@
+[
+  {
+    "id": "apertura_puerta",
+    "emoji": "🚪",
+    "nombre": "Apertura de puerta",
+    "precio_base": 65,
+    "precio_emergencia": 95,
+    "activo": true
+  },
+  {
+    "id": "cambio_cilindro",
+    "emoji": "🔧",
+    "nombre": "Cambio de cilindro 1",
+    "precio_base": 80.01,
+    "precio_emergencia": 120,
+    "activo": true
+  },
+  {
+    "id": "duplicado_llave",
+    "emoji": "🗝️",
+    "nombre": "Duplicado de llave",
+    "precio_base": 25,
+    "precio_emergencia": 40,
+    "activo": true
+  },
+  {
+    "id": "apertura_caja_fuerte",
+    "emoji": "🔒",
+    "nombre": "Apertura de caja fuerte",
+    "precio_base": 150,
+    "precio_emergencia": 220,
+    "activo": true
+  },
+  {
+    "id": "instalacion_cerradura",
+    "emoji": "⚙️",
+    "nombre": "Instalación de cerradura",
+    "precio_base": 90,
+    "precio_emergencia": 135,
+    "activo": true
+  },
+  {
+    "id": "emergencia_vehiculo",
+    "emoji": "🚗",
+    "nombre": "Emergencia de vehículo",
+    "precio_base": 75,
+    "precio_emergencia": 110,
+    "activo": true
+  },
+  {
+    "id": "otro",
+    "emoji": "📋",
+    "nombre": "Otro",
+    "precio_base": 60,
+    "precio_emergencia": 90,
+    "activo": true
+  }
+]

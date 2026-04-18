@@ -1,0 +1,90 @@
+[
+  {
+    "id": "CRR-001",
+    "nombre": "Carlos Rodríguez",
+    "telefono": "+17871110001",
+    "zonas": [
+      "Bayamón",
+      "Guaynabo",
+      "Toa Baja",
+      "Toa Alta"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "",
+    "ultimo_servicio": "2026-04-15T21:24:55.893Z"
+  },
+  {
+    "id": "CRR-002",
+    "nombre": "Miguel Torres",
+    "telefono": "+17872220002",
+    "zonas": [
+      "San Juan",
+      "Carolina",
+      "Canóvanas",
+      "Loíza"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "",
+    "ultimo_servicio": "2026-04-15T21:38:22.249Z"
+  },
+  {
+    "id": "CRR-003",
+    "nombre": "Juan Pérez",
+    "telefono": "+17873330003",
+    "zonas": [
+      "Caguas",
+      "Trujillo Alto",
+      "Gurabo",
+      "San Lorenzo"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "",
+    "ultimo_servicio": "2026-04-16T01:26:22.251Z"
+  },
+  {
+    "id": "CRR-004",
+    "nombre": "Roberto Martínez",
+    "telefono": "+17874440004",
+    "zonas": [
+      "Ponce",
+      "Juana Díaz",
+      "Peñuelas",
+      "Guayanilla"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "",
+    "ultimo_servicio": null
+  },
+  {
+    "id": "CRR-005",
+    "nombre": "Luis García",
+    "telefono": "+17875550005",
+    "zonas": [
+      "Arecibo",
+      "Manatí",
+      "Barceloneta",
+      "Dorado",
+      "Vega Alta",
+      "Vega Baja"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "",
+    "ultimo_servicio": null
+  },
+  {
+    "id": "CRR-006",
+    "nombre": "Mateo Giraldo",
+    "telefono": "+573124743435",
+    "zonas": [
+      "Humacao",
+      "Fajardo",
+      "Luquillo",
+      "Naguabo",
+      "Las Piedras",
+      "Yabucoa"
+    ],
+    "disponible": true,
+    "callmebot_apikey": "2809241",
+    "ultimo_servicio": "2026-04-15T21:57:17.685Z"
+  }
+]

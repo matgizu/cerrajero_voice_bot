@@ -1,0 +1,26 @@
+# Dependencias de Node.js
+node_modules/
+
+# Variables de entorno (¡NUNCA subir al repositorio!)
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
