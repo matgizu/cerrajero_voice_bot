@@ -1,9 +1,6 @@
 'use strict';
 
-const fs   = require('fs');
-const path = require('path');
-
-const DATA_PATH = path.join(__dirname, 'data/cerrajeros.json');
+const { pool } = require('./db');
 
 // Municipios de Puerto Rico para detección automática en la ubicación
 const MUNICIPIOS = [
@@ -22,18 +19,16 @@ const MUNICIPIOS = [
   'Vieques','Villalba','Yabucoa','Yauco'
 ];
 
-// ── Persistencia ──────────────────────────────────────────────────────────────
-
-function cargarCerrajeros() {
-  try {
-    return JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
-  } catch {
-    return [];
-  }
-}
-
-function guardarCerrajeros(lista) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(lista, null, 2), 'utf-8');
+function rowToCerrajero(row) {
+  return {
+    id:               row.id,
+    nombre:           row.nombre,
+    telefono:         row.telefono,
+    zonas:            row.zonas,
+    disponible:       row.disponible,
+    callmebot_apikey: row.callmebot_apikey || '',
+    ultimo_servicio:  row.ultimo_servicio ? row.ultimo_servicio.toISOString() : null,
+  };
 }
 
 // ── Detección de municipio ────────────────────────────────────────────────────
@@ -45,18 +40,14 @@ function detectarMunicipio(ubicacion) {
 }
 
 // ── Asignación automática ─────────────────────────────────────────────────────
-// Prioridad: disponible en zona → cualquiera en zona → cualquier disponible → cualquiera
-// Desempate: el que hace más tiempo no recibe un servicio
 
-function asignarCerrajero(ubicacion) {
-  const cerrajeros = cargarCerrajeros();
+async function asignarCerrajero(ubicacion) {
+  const { rows } = await pool.query('SELECT * FROM cerrajeros');
+  const cerrajeros = rows.map(rowToCerrajero);
   if (cerrajeros.length === 0) return null;
 
   const municipio = detectarMunicipio(ubicacion);
-
-  const enZona = (c) =>
-    municipio && c.zonas.some(z => z.toLowerCase() === municipio.toLowerCase());
-
+  const enZona = (c) => municipio && c.zonas.some(z => z.toLowerCase() === municipio.toLowerCase());
   const porFecha = (a, b) => {
     const tA = a.ultimo_servicio ? new Date(a.ultimo_servicio).getTime() : 0;
     const tB = b.ultimo_servicio ? new Date(b.ultimo_servicio).getTime() : 0;
@@ -71,32 +62,31 @@ function asignarCerrajero(ubicacion) {
   return candidatos[0] || null;
 }
 
-function marcarUltimoServicio(id) {
-  const lista = cargarCerrajeros();
-  const idx   = lista.findIndex(c => c.id === id);
-  if (idx !== -1) {
-    lista[idx].ultimo_servicio = new Date().toISOString();
-    guardarCerrajeros(lista);
-  }
+async function marcarUltimoServicio(id) {
+  await pool.query(
+    'UPDATE cerrajeros SET ultimo_servicio = NOW() WHERE id = $1',
+    [id]
+  );
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-function listarCerrajeros() {
-  return cargarCerrajeros();
+async function listarCerrajeros() {
+  const { rows } = await pool.query('SELECT * FROM cerrajeros ORDER BY id');
+  return rows.map(rowToCerrajero);
 }
 
-function getCerrajero(id) {
-  return cargarCerrajeros().find(c => c.id === id) || null;
+async function getCerrajero(id) {
+  const { rows } = await pool.query('SELECT * FROM cerrajeros WHERE id = $1', [id]);
+  return rows[0] ? rowToCerrajero(rows[0]) : null;
 }
 
-function toggleDisponibilidad(id) {
-  const lista = cargarCerrajeros();
-  const idx   = lista.findIndex(c => c.id === id);
-  if (idx === -1) return null;
-  lista[idx].disponible = !lista[idx].disponible;
-  guardarCerrajeros(lista);
-  return lista[idx];
+async function toggleDisponibilidad(id) {
+  const { rows } = await pool.query(
+    'UPDATE cerrajeros SET disponible = NOT disponible WHERE id = $1 RETURNING *',
+    [id]
+  );
+  return rows[0] ? rowToCerrajero(rows[0]) : null;
 }
 
 module.exports = {
@@ -105,5 +95,5 @@ module.exports = {
   marcarUltimoServicio,
   listarCerrajeros,
   getCerrajero,
-  toggleDisponibilidad
+  toggleDisponibilidad,
 };

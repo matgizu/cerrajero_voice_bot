@@ -19,6 +19,7 @@ const path = require('path');
 const cors = require('cors');
 
 const { buildSetupMessage, buildGeminiUrl } = require('./gemini');
+const { initDB } = require('./db');
 const { manejarFunctionCall, listarServicios, guardarServicio, actualizarEstado, reasignarCerrajero } = require('./services');
 const { listarCerrajeros, toggleDisponibilidad } = require('./cerrajeros');
 const { listarCatalogo, crearServicioCatalogo, actualizarServicioCatalogo, eliminarServicioCatalogo } = require('./catalogo');
@@ -67,52 +68,52 @@ app.get('/api/eventos', (req, res) => {
 // ── Rutas HTTP ─────────────────────────────────────────────────────────────────
 
 // Servicios
-app.get('/api/servicios', (_req, res) => {
-  const lista = listarServicios();
+app.get('/api/servicios', async (_req, res) => {
+  const lista = await listarServicios();
   res.json({ total: lista.length, servicios: lista });
 });
 
-app.patch('/api/servicios/:id/estado', (req, res) => {
+app.patch('/api/servicios/:id/estado', async (req, res) => {
   const { estado } = req.body;
-  const resultado  = actualizarEstado(req.params.id, estado);
+  const resultado  = await actualizarEstado(req.params.id, estado);
   res.status(resultado.exito ? 200 : 400).json(resultado);
 });
 
-app.patch('/api/servicios/:id/asignar', (req, res) => {
+app.patch('/api/servicios/:id/asignar', async (req, res) => {
   const { cerrajero_id } = req.body;
-  const resultado        = reasignarCerrajero(req.params.id, cerrajero_id);
+  const resultado        = await reasignarCerrajero(req.params.id, cerrajero_id);
   res.status(resultado.exito ? 200 : 400).json(resultado);
 });
 
 // Cerrajeros
-app.get('/api/cerrajeros', (_req, res) => {
-  res.json(listarCerrajeros());
+app.get('/api/cerrajeros', async (_req, res) => {
+  res.json(await listarCerrajeros());
 });
 
-app.patch('/api/cerrajeros/:id/disponibilidad', (req, res) => {
-  const cerrajero = toggleDisponibilidad(req.params.id);
+app.patch('/api/cerrajeros/:id/disponibilidad', async (req, res) => {
+  const cerrajero = await toggleDisponibilidad(req.params.id);
   if (!cerrajero) return res.status(404).json({ error: 'Cerrajero no encontrado' });
   emitter.emit('cerrajero_actualizado', cerrajero);
   res.json(cerrajero);
 });
 
 // Catálogo de servicios
-app.get('/api/catalogo', (_req, res) => {
-  res.json(listarCatalogo());
+app.get('/api/catalogo', async (_req, res) => {
+  res.json(await listarCatalogo());
 });
 
-app.post('/api/catalogo', (req, res) => {
-  const resultado = crearServicioCatalogo(req.body);
+app.post('/api/catalogo', async (req, res) => {
+  const resultado = await crearServicioCatalogo(req.body);
   res.status(resultado.exito ? 201 : 400).json(resultado);
 });
 
-app.patch('/api/catalogo/:id', (req, res) => {
-  const resultado = actualizarServicioCatalogo(req.params.id, req.body);
+app.patch('/api/catalogo/:id', async (req, res) => {
+  const resultado = await actualizarServicioCatalogo(req.params.id, req.body);
   res.status(resultado.exito ? 200 : 404).json(resultado);
 });
 
-app.delete('/api/catalogo/:id', (req, res) => {
-  const resultado = eliminarServicioCatalogo(req.params.id);
+app.delete('/api/catalogo/:id', async (req, res) => {
+  const resultado = await eliminarServicioCatalogo(req.params.id);
   res.status(resultado.exito ? 200 : 404).json(resultado);
 });
 
@@ -158,11 +159,10 @@ app.post('/twilio/incoming', (req, res) => {
 });
 
 // ── ElevenLabs — Webhook de Tool Calls (guardar_servicio) ────────────────────
-app.post('/api/tools/guardar_servicio', (req, res) => {
-  // ElevenLabs envía los parámetros en req.body o req.body.parameters
+app.post('/api/tools/guardar_servicio', async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook guardar_servicio:', JSON.stringify(params));
-  const resultado = guardarServicio(params);
+  const resultado = await guardarServicio(params);
   res.json({ result: resultado.mensaje || 'Servicio procesado' });
 });
 
@@ -199,8 +199,6 @@ server.on('upgrade', (req, socket, head) => {
     socket.destroy();
   }
 });
-
-console.log('🔐 Servidor arrancando...');
 
 wss.on('connection', (clientWs, req) => {
   const clientId = `cliente-${Date.now().toString(36)}`;
@@ -250,7 +248,7 @@ wss.on('connection', (clientWs, req) => {
       setupSent = true;
     });
 
-    geminiWs.on('message', (data) => {
+    geminiWs.on('message', async (data) => {
       try {
         const msg = JSON.parse(data.toString());
 
@@ -311,7 +309,7 @@ wss.on('connection', (clientWs, req) => {
           for (const fc of msg.toolCall.functionCalls) {
             console.log(`\n🔧 [${clientId}] Function Call: ${fc.name}`);
 
-            const resultado = manejarFunctionCall(fc.name, fc.args || {});
+            const resultado = await manejarFunctionCall(fc.name, fc.args || {});
 
             // Notificar al cliente que se guardó el servicio
             if (fc.name === 'guardar_servicio' && resultado.exito) {
@@ -485,25 +483,36 @@ wss.on('connection', (clientWs, req) => {
 });
 
 // ── Iniciar servidor ──────────────────────────────────────────────────────────
-server.listen(PORT, () => {
-  console.log('\n');
-  console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║        🔑 CERRAJERO VOICE AGENT — Servidor Activo        ║');
-  console.log('╠══════════════════════════════════════════════════════════╣');
-  console.log(`║  🌐 Interfaz web:  http://localhost:${PORT}                 ║`);
-  console.log(`║  🔌 WebSocket:     ws://localhost:${PORT}/ws               ║`);
-  console.log(`║  📊 Servicios:     http://localhost:${PORT}/api/servicios   ║`);
-  console.log(`║  ❤️  Health:        http://localhost:${PORT}/api/health      ║`);
-  console.log('╠══════════════════════════════════════════════════════════╣');
-  console.log(`║  Modelo: ${(process.env.GEMINI_MODEL || 'gemini-2.0-flash-live-001').padEnd(46)} ║`);
-  console.log(`║  Voz:    ${(process.env.AGENT_VOICE || 'Charon').padEnd(46)} ║`);
-  console.log('╚══════════════════════════════════════════════════════════╝');
-  console.log('\n  Esperando conexiones...\n');
+async function start() {
+  console.log('🔐 Servidor arrancando...');
+  console.log('  Conectando a la base de datos...');
+  await initDB();
 
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'TU_API_KEY_AQUI') {
-    console.warn('  ⚠️  ADVERTENCIA: GEMINI_API_KEY no está configurada.');
-    console.warn('     Copia .env.example → .env y añade tu API key.\n');
-  }
+  server.listen(PORT, () => {
+    console.log('\n');
+    console.log('╔══════════════════════════════════════════════════════════╗');
+    console.log('║        🔑 CERRAJERO VOICE AGENT — Servidor Activo        ║');
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    console.log(`║  🌐 Interfaz web:  http://localhost:${PORT}                 ║`);
+    console.log(`║  🔌 WebSocket:     ws://localhost:${PORT}/ws               ║`);
+    console.log(`║  📊 Servicios:     http://localhost:${PORT}/api/servicios   ║`);
+    console.log(`║  ❤️  Health:        http://localhost:${PORT}/api/health      ║`);
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    console.log(`║  Modelo: ${(process.env.GEMINI_MODEL || 'gemini-2.0-flash-live-001').padEnd(46)} ║`);
+    console.log(`║  Voz:    ${(process.env.AGENT_VOICE || 'Charon').padEnd(46)} ║`);
+    console.log('╚══════════════════════════════════════════════════════════╝');
+    console.log('\n  Esperando conexiones...\n');
+
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'TU_API_KEY_AQUI') {
+      console.warn('  ⚠️  ADVERTENCIA: GEMINI_API_KEY no está configurada.');
+      console.warn('     Copia .env.example → .env y añade tu API key.\n');
+    }
+  });
+}
+
+start().catch(err => {
+  console.error('❌ Error fatal al iniciar:', err.message);
+  process.exit(1);
 });
 
 module.exports = server;
