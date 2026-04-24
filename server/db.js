@@ -24,13 +24,13 @@ const CERRAJEROS_SEED = [
 ];
 
 const CATALOGO_SEED = [
-  { id: 'apertura_puerta',       emoji: '🚪', nombre: 'Apertura de puerta',       precio_base: 65,  precio_emergencia: 95  },
-  { id: 'cambio_cilindro',       emoji: '🔧', nombre: 'Cambio de cilindro',        precio_base: 80,  precio_emergencia: 120 },
-  { id: 'duplicado_llave',       emoji: '🗝️', nombre: 'Duplicado de llave',        precio_base: 25,  precio_emergencia: 40  },
-  { id: 'apertura_caja_fuerte',  emoji: '🔒', nombre: 'Apertura de caja fuerte',   precio_base: 150, precio_emergencia: 220 },
-  { id: 'instalacion_cerradura', emoji: '⚙️', nombre: 'Instalación de cerradura',  precio_base: 90,  precio_emergencia: 135 },
-  { id: 'emergencia_vehiculo',   emoji: '🚗', nombre: 'Emergencia de vehículo',    precio_base: 75,  precio_emergencia: 110 },
-  { id: 'otro',                  emoji: '📋', nombre: 'Otro',                       precio_base: 60,  precio_emergencia: 90  },
+  { id: 'apertura_puerta',       emoji: '🚪', nombre: 'Apertura de puerta',       precio_base: 65,  precio_emergencia: 95,  precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'cambio_cilindro',       emoji: '🔧', nombre: 'Cambio de cilindro',        precio_base: 80,  precio_emergencia: 120, precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'duplicado_llave',       emoji: '🗝️', nombre: 'Duplicado de llave',        precio_base: 25,  precio_emergencia: 40,  precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'apertura_caja_fuerte',  emoji: '🔒', nombre: 'Apertura de caja fuerte',   precio_base: 150, precio_emergencia: 220, precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'instalacion_cerradura', emoji: '⚙️', nombre: 'Instalación de cerradura',  precio_base: 90,  precio_emergencia: 135, precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'emergencia_vehiculo',   emoji: '🚗', nombre: 'Emergencia de vehículo',    precio_base: 75,  precio_emergencia: 110, precio_copia_llave: 0, precio_llave_perdida: 0 },
+  { id: 'otro',                  emoji: '📋', nombre: 'Otro',                       precio_base: 60,  precio_emergencia: 90,  precio_copia_llave: 0, precio_llave_perdida: 0 },
 ];
 
 // ── Inicialización de tablas ───────────────────────────────────────────────────
@@ -64,13 +64,21 @@ async function initDB() {
     );
 
     CREATE TABLE IF NOT EXISTS catalogo (
-      id                TEXT PRIMARY KEY,
-      emoji             TEXT             DEFAULT '🔑',
-      nombre            TEXT    NOT NULL,
-      precio_base       NUMERIC(10,2) NOT NULL,
-      precio_emergencia NUMERIC(10,2) NOT NULL,
-      activo            BOOLEAN NOT NULL DEFAULT true
+      id                   TEXT PRIMARY KEY,
+      emoji                TEXT             DEFAULT '🔑',
+      nombre               TEXT    NOT NULL,
+      precio_base          NUMERIC(10,2) NOT NULL,
+      precio_emergencia    NUMERIC(10,2) NOT NULL,
+      precio_copia_llave   NUMERIC(10,2) NOT NULL DEFAULT 0,
+      precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0,
+      activo               BOOLEAN NOT NULL DEFAULT true
     );
+  `);
+
+  // Migraciones para tablas ya existentes (añade columnas si no existen)
+  await pool.query(`
+    ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_copia_llave   NUMERIC(10,2) NOT NULL DEFAULT 0;
+    ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0;
   `);
 
   // Seed cerrajeros si la tabla está vacía
@@ -91,9 +99,9 @@ async function initDB() {
   if (catCount === '0') {
     for (const s of CATALOGO_SEED) {
       await pool.query(
-        `INSERT INTO catalogo (id, emoji, nombre, precio_base, precio_emergencia)
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
-        [s.id, s.emoji, s.nombre, s.precio_base, s.precio_emergencia]
+        `INSERT INTO catalogo (id, emoji, nombre, precio_base, precio_emergencia, precio_copia_llave, precio_llave_perdida)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+        [s.id, s.emoji, s.nombre, s.precio_base, s.precio_emergencia, s.precio_copia_llave, s.precio_llave_perdida]
       );
     }
     console.log('  ✅ Catálogo inicial insertado');

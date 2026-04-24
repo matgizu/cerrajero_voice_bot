@@ -437,6 +437,8 @@ function renderCatalogo() {
   catalogo.forEach(item => {
     const tr = document.createElement('tr');
     tr.className = item.activo ? '' : 'catalogo-row-inactivo';
+    const fmtPrecio = (v) => Number(v) === 0 ? '<span class="precio-cero">—</span>' : `$${Number(v).toFixed(2)}`;
+
     tr.innerHTML = `
       <td class="catalogo-nombre">
         <span class="catalogo-emoji">${item.emoji}</span>
@@ -444,6 +446,8 @@ function renderCatalogo() {
       </td>
       <td class="catalogo-precio">$${Number(item.precio_base).toFixed(2)}</td>
       <td class="catalogo-precio emergencia">$${Number(item.precio_emergencia).toFixed(2)}</td>
+      <td class="catalogo-precio auto">${fmtPrecio(item.precio_copia_llave)}</td>
+      <td class="catalogo-precio auto">${fmtPrecio(item.precio_llave_perdida)}</td>
       <td>
         <span class="catalogo-badge ${item.activo ? 'activo' : 'inactivo'}">
           ${item.activo ? 'Activo' : 'Inactivo'}
@@ -477,10 +481,12 @@ function iniciarEdicionCatalogo(id) {
   if (!item) return;
   catalogoEditandoId = id;
 
-  document.getElementById('cat-emoji').value              = item.emoji;
-  document.getElementById('cat-nombre').value             = item.nombre;
-  document.getElementById('cat-precio-base').value        = item.precio_base;
-  document.getElementById('cat-precio-emergencia').value  = item.precio_emergencia;
+  document.getElementById('cat-emoji').value                = item.emoji;
+  document.getElementById('cat-nombre').value               = item.nombre;
+  document.getElementById('cat-precio-base').value          = item.precio_base;
+  document.getElementById('cat-precio-emergencia').value    = item.precio_emergencia;
+  document.getElementById('cat-precio-copia-llave').value   = item.precio_copia_llave;
+  document.getElementById('cat-precio-llave-perdida').value = item.precio_llave_perdida;
 
   document.getElementById('catalogo-form-title').textContent = 'Editar servicio';
   document.getElementById('cat-cancel-btn').style.display    = '';
@@ -489,19 +495,23 @@ function iniciarEdicionCatalogo(id) {
 
 function cancelarEdicionCatalogo() {
   catalogoEditandoId = null;
-  document.getElementById('cat-emoji').value             = '';
-  document.getElementById('cat-nombre').value            = '';
-  document.getElementById('cat-precio-base').value       = '';
-  document.getElementById('cat-precio-emergencia').value = '';
+  document.getElementById('cat-emoji').value                = '';
+  document.getElementById('cat-nombre').value               = '';
+  document.getElementById('cat-precio-base').value          = '';
+  document.getElementById('cat-precio-emergencia').value    = '';
+  document.getElementById('cat-precio-copia-llave').value   = '';
+  document.getElementById('cat-precio-llave-perdida').value = '';
   document.getElementById('catalogo-form-title').textContent = 'Agregar servicio';
   document.getElementById('cat-cancel-btn').style.display   = 'none';
 }
 
 async function guardarCatalogo() {
-  const emoji            = document.getElementById('cat-emoji').value.trim() || '🔑';
-  const nombre           = document.getElementById('cat-nombre').value.trim();
-  const precio_base      = parseFloat(document.getElementById('cat-precio-base').value);
-  const precio_emergencia = parseFloat(document.getElementById('cat-precio-emergencia').value);
+  const emoji               = document.getElementById('cat-emoji').value.trim() || '🔑';
+  const nombre              = document.getElementById('cat-nombre').value.trim();
+  const precio_base         = parseFloat(document.getElementById('cat-precio-base').value);
+  const precio_emergencia   = parseFloat(document.getElementById('cat-precio-emergencia').value);
+  const precio_copia_llave  = parseFloat(document.getElementById('cat-precio-copia-llave').value)   || 0;
+  const precio_llave_perdida = parseFloat(document.getElementById('cat-precio-llave-perdida').value) || 0;
 
   if (!nombre || isNaN(precio_base)) {
     showToast('Completa nombre y precio base', 'error');
@@ -514,7 +524,7 @@ async function guardarCatalogo() {
       res  = await fetch(`/api/catalogo/${catalogoEditandoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji, nombre, precio_base, precio_emergencia: isNaN(precio_emergencia) ? precio_base : precio_emergencia })
+        body: JSON.stringify({ emoji, nombre, precio_base, precio_emergencia: isNaN(precio_emergencia) ? precio_base : precio_emergencia, precio_copia_llave, precio_llave_perdida })
       });
       data = await res.json();
       if (data.exito) {
@@ -526,7 +536,7 @@ async function guardarCatalogo() {
       res  = await fetch('/api/catalogo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji, nombre, precio_base, precio_emergencia: isNaN(precio_emergencia) ? precio_base : precio_emergencia })
+        body: JSON.stringify({ emoji, nombre, precio_base, precio_emergencia: isNaN(precio_emergencia) ? precio_base : precio_emergencia, precio_copia_llave, precio_llave_perdida })
       });
       data = await res.json();
       if (data.exito) {

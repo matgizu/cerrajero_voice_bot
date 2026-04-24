@@ -4,12 +4,14 @@ const { pool } = require('./db');
 
 function rowToItem(row) {
   return {
-    id:                row.id,
-    emoji:             row.emoji,
-    nombre:            row.nombre,
-    precio_base:       Number(row.precio_base),
-    precio_emergencia: Number(row.precio_emergencia),
-    activo:            row.activo,
+    id:                   row.id,
+    emoji:                row.emoji,
+    nombre:               row.nombre,
+    precio_base:          Number(row.precio_base),
+    precio_emergencia:    Number(row.precio_emergencia),
+    precio_copia_llave:   Number(row.precio_copia_llave   ?? 0),
+    precio_llave_perdida: Number(row.precio_llave_perdida ?? 0),
+    activo:               row.activo,
   };
 }
 
@@ -20,7 +22,7 @@ async function listarCatalogo() {
   return rows.map(rowToItem);
 }
 
-async function crearServicioCatalogo({ nombre, emoji, precio_base, precio_emergencia }) {
+async function crearServicioCatalogo({ nombre, emoji, precio_base, precio_emergencia, precio_copia_llave, precio_llave_perdida }) {
   if (!nombre || precio_base == null) {
     return { exito: false, mensaje: 'Se requieren nombre y precio_base.' };
   }
@@ -40,12 +42,18 @@ async function crearServicioCatalogo({ nombre, emoji, precio_base, precio_emerge
   let id = slug;
   if (existing.length > 0) id = `${slug}_${existing.length + 1}`;
 
-  const precioEmergencia = precio_emergencia != null ? Number(precio_emergencia) : Number(precio_base);
-
   const { rows } = await pool.query(
-    `INSERT INTO catalogo (id, emoji, nombre, precio_base, precio_emergencia)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [id, emoji || '🔑', nombre.trim(), Number(precio_base), precioEmergencia]
+    `INSERT INTO catalogo (id, emoji, nombre, precio_base, precio_emergencia, precio_copia_llave, precio_llave_perdida)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [
+      id,
+      emoji || '🔑',
+      nombre.trim(),
+      Number(precio_base),
+      precio_emergencia != null ? Number(precio_emergencia) : Number(precio_base),
+      precio_copia_llave   != null ? Number(precio_copia_llave)   : 0,
+      precio_llave_perdida != null ? Number(precio_llave_perdida) : 0,
+    ]
   );
 
   return { exito: true, item: rowToItem(rows[0]) };
@@ -60,11 +68,13 @@ async function actualizarServicioCatalogo(id, cambios) {
   let   idx    = 1;
 
   const campos = {
-    nombre:            v => v,
-    emoji:             v => v,
-    precio_base:       v => Number(v),
-    precio_emergencia: v => Number(v),
-    activo:            v => Boolean(v),
+    nombre:               v => v,
+    emoji:                v => v,
+    precio_base:          v => Number(v),
+    precio_emergencia:    v => Number(v),
+    precio_copia_llave:   v => Number(v),
+    precio_llave_perdida: v => Number(v),
+    activo:               v => Boolean(v),
   };
 
   for (const [campo, transform] of Object.entries(campos)) {

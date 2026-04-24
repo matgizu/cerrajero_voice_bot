@@ -519,6 +519,9 @@ body {
   color: var(--success);
 }
 .catalogo-precio.emergencia { color: var(--warning); }
+.catalogo-precio.auto       { color: var(--info); }
+
+.precio-cero { color: var(--muted); font-weight: 400; }
 
 .catalogo-badge {
   font-size: 11px;
