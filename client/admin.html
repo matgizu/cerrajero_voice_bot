@@ -86,29 +86,35 @@
     <div class="catalogo-form-card" id="catalogo-form-card">
       <h3 id="catalogo-form-title">Agregar servicio</h3>
       <div class="catalogo-form-grid">
-        <div class="form-group">
-          <label>Emoji</label>
-          <input type="text" id="cat-emoji" placeholder="🔑" maxlength="2">
+        <!-- Fila 1: identificación -->
+        <div class="cat-row cat-row-id">
+          <div class="form-group cat-emoji-group">
+            <label>Emoji</label>
+            <input type="text" id="cat-emoji" placeholder="🔑" maxlength="2">
+          </div>
+          <div class="form-group cat-nombre-group">
+            <label>Nombre del servicio</label>
+            <input type="text" id="cat-nombre" placeholder="Ej. Apertura de maletero">
+          </div>
         </div>
-        <div class="form-group" style="flex:3">
-          <label>Nombre del servicio</label>
-          <input type="text" id="cat-nombre" placeholder="Ej. Apertura de maletero">
-        </div>
-        <div class="form-group">
-          <label>Precio base ($)</label>
-          <input type="number" id="cat-precio-base" placeholder="0.00" min="0" step="0.01">
-        </div>
-        <div class="form-group">
-          <label>Precio emergencia ($)</label>
-          <input type="number" id="cat-precio-emergencia" placeholder="0.00" min="0" step="0.01">
-        </div>
-        <div class="form-group">
-          <label>Copia de llave auto ($)</label>
-          <input type="number" id="cat-precio-copia-llave" placeholder="0.00" min="0" step="0.01">
-        </div>
-        <div class="form-group">
-          <label>Llave perdida auto ($)</label>
-          <input type="number" id="cat-precio-llave-perdida" placeholder="0.00" min="0" step="0.01">
+        <!-- Fila 2: precios -->
+        <div class="cat-row cat-row-precios">
+          <div class="form-group">
+            <label>Precio base ($)</label>
+            <input type="number" id="cat-precio-base" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Precio emergencia ($)</label>
+            <input type="number" id="cat-precio-emergencia" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Copia de llave ($)</label>
+            <input type="number" id="cat-precio-copia-llave" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Llave perdida ($)</label>
+            <input type="number" id="cat-precio-llave-perdida" placeholder="0.00" min="0" step="0.01">
+          </div>
         </div>
       </div>
       <div class="catalogo-form-actions">
@@ -132,6 +138,133 @@
           </tr>
         </thead>
         <tbody id="catalogo-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ── Sección: Precios por Vehículo ─────────────────────────────────── -->
+    <div class="vehiculo-section-header">
+      <div class="vehiculo-section-title">
+        <span>🚗</span>
+        <h3>Precios por Vehículo</h3>
+        <span class="vehiculo-count-badge" id="vehiculo-count-badge">0 vehículos</span>
+      </div>
+      <p class="vehiculo-section-desc">Asigna precios específicos de copia de llave y llave perdida por año, marca y modelo.</p>
+    </div>
+
+    <!-- Formulario selector + precios -->
+    <div class="vehiculo-form-card" id="vehiculo-form-card">
+      <div class="vehiculo-selectors">
+        <div class="form-group">
+          <label>Año</label>
+          <select id="veh-anio">
+            <option value="">— Selecciona —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Marca</label>
+          <select id="veh-marca" disabled>
+            <option value="">— Selecciona año —</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:2">
+          <label>Modelo</label>
+          <select id="veh-modelo" disabled>
+            <option value="">— Selecciona marca —</option>
+          </select>
+        </div>
+      </div>
+      <div class="vehiculo-prices">
+        <div class="form-group">
+          <label>🔓 Apertura ($)</label>
+          <input type="number" id="veh-apertura" placeholder="0.00" min="0" step="0.01" disabled>
+        </div>
+        <div class="form-group">
+          <label>🚗 Copia de llave ($)</label>
+          <input type="number" id="veh-copia" placeholder="0.00" min="0" step="0.01" disabled>
+        </div>
+        <div class="form-group">
+          <label>🔑 Llave perdida ($)</label>
+          <input type="number" id="veh-perdida" placeholder="0.00" min="0" step="0.01" disabled>
+        </div>
+        <div class="form-group vehiculo-save-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="veh-save-btn" disabled>Guardar precio</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buscador + tabla de precios guardados -->
+    <div class="vehiculo-table-wrap">
+      <div class="vehiculo-table-toolbar">
+        <input type="text" id="veh-search" placeholder="🔍  Buscar por año, marca o modelo..." autocomplete="off">
+        <span class="vehiculo-total-label" id="veh-total-label"></span>
+      </div>
+      <table class="catalogo-table vehiculo-table" id="vehiculo-table">
+        <thead>
+          <tr>
+            <th>Año</th>
+            <th>Marca</th>
+            <th>Modelo</th>
+            <th>🔓 Apertura</th>
+            <th>🚗 Copia llave</th>
+            <th>🔑 Llave perdida</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="vehiculo-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ── Sección: Precios de Apertura por Marca ────────────────────────── -->
+    <div class="vehiculo-section-header">
+      <div class="vehiculo-section-title">
+        <span>🔓</span>
+        <h3>Precios de Apertura por Marca</h3>
+        <span class="vehiculo-count-badge apertura-badge" id="apertura-count-badge">0 marcas</span>
+      </div>
+      <p class="vehiculo-section-desc">Precio base de apertura de vehículo según la marca. Las marcas europeas pueden variar según técnica.</p>
+    </div>
+
+    <!-- Formulario edición apertura -->
+    <div class="vehiculo-form-card" id="apertura-form-card">
+      <div class="vehiculo-selectors">
+        <div class="form-group">
+          <label>Marca</label>
+          <select id="ap-marca">
+            <option value="">— Selecciona marca —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🔓 Precio apertura ($)</label>
+          <input type="number" id="ap-precio" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group" style="flex:3">
+          <label>Notas</label>
+          <input type="text" id="ap-notas" placeholder="Ej. Sin barrilla desde $150 · Corvette $250">
+        </div>
+        <div class="form-group apertura-save-wrap">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="ap-save-btn">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla apertura por marca -->
+    <div class="vehiculo-table-wrap" style="margin-bottom:32px">
+      <div class="vehiculo-table-toolbar">
+        <input type="text" id="ap-search" placeholder="🔍  Buscar marca..." autocomplete="off">
+        <span class="vehiculo-total-label" id="ap-total-label"></span>
+      </div>
+      <table class="catalogo-table" id="apertura-table">
+        <thead>
+          <tr>
+            <th>Marca</th>
+            <th>🔓 Precio apertura</th>
+            <th>Notas</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="apertura-tbody"></tbody>
       </table>
     </div>
 

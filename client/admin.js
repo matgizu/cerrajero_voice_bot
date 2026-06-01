@@ -599,7 +599,376 @@ async function eliminarCatalogo(id) {
 document.getElementById('cat-save-btn').addEventListener('click', guardarCatalogo);
 document.getElementById('cat-cancel-btn').addEventListener('click', cancelarEdicionCatalogo);
 
+// ── Precios por Vehículo ──────────────────────────────────────────────────────
+let preciosVehiculos   = [];
+let preciosVehFiltered = [];
+
+const selAnio   = document.getElementById('veh-anio');
+const selMarca  = document.getElementById('veh-marca');
+const selModelo = document.getElementById('veh-modelo');
+const inpApertura = document.getElementById('veh-apertura');
+const inpCopia    = document.getElementById('veh-copia');
+const inpPerdida  = document.getElementById('veh-perdida');
+const saveBtn     = document.getElementById('veh-save-btn');
+const searchInp = document.getElementById('veh-search');
+
+async function cargarAnios() {
+  const years = await fetch('/api/vehiculos/years').then(r => r.json());
+  selAnio.innerHTML = '<option value="">— Selecciona —</option>';
+  years.forEach(y => {
+    const o = document.createElement('option');
+    o.value = o.textContent = y;
+    selAnio.appendChild(o);
+  });
+}
+
+selAnio.addEventListener('change', async () => {
+  const year = selAnio.value;
+  selMarca.innerHTML  = '<option value="">— Selecciona marca —</option>';
+  selModelo.innerHTML = '<option value="">— Selecciona marca —</option>';
+  selMarca.disabled   = !year;
+  selModelo.disabled  = true;
+  inpApertura.disabled = true;
+  inpCopia.disabled   = true;
+  inpPerdida.disabled  = true;
+  saveBtn.disabled    = true;
+  if (!year) return;
+
+  const makes = await fetch(`/api/vehiculos/makes?year=${encodeURIComponent(year)}`).then(r => r.json());
+  makes.forEach(m => {
+    const o = document.createElement('option');
+    o.value = o.textContent = m;
+    selMarca.appendChild(o);
+  });
+  selMarca.disabled = false;
+
+  // Pre-rellenar si hay precio guardado para este año
+  actualizarPreciosGuardados();
+});
+
+selMarca.addEventListener('change', async () => {
+  const year = selAnio.value;
+  const make = selMarca.value;
+  selModelo.innerHTML = '<option value="">— Selecciona modelo —</option>';
+  selModelo.disabled   = true;
+  inpApertura.disabled  = true;
+  inpCopia.disabled    = true;
+  inpPerdida.disabled   = true;
+  saveBtn.disabled     = true;
+  if (!make) return;
+
+  const models = await fetch(`/api/vehiculos/models?year=${encodeURIComponent(year)}&make=${encodeURIComponent(make)}`).then(r => r.json());
+  models.forEach(m => {
+    const o = document.createElement('option');
+    o.value = o.textContent = m;
+    selModelo.appendChild(o);
+  });
+  selModelo.disabled = false;
+});
+
+selModelo.addEventListener('change', () => {
+  const modelo = selModelo.value;
+  inpApertura.disabled = !modelo;
+  inpCopia.disabled    = !modelo;
+  inpPerdida.disabled  = !modelo;
+  saveBtn.disabled     = !modelo;
+  if (!modelo) return;
+
+  const existing = preciosVehiculos.find(
+    p => p.anio === selAnio.value && p.marca === selMarca.value && p.modelo === modelo
+  );
+  inpApertura.value = existing ? existing.precio_apertura      : '';
+  inpCopia.value    = existing ? existing.precio_copia_llave   : '';
+  inpPerdida.value  = existing ? existing.precio_llave_perdida : '';
+});
+
+async function guardarPrecioVehiculo() {
+  const anio   = selAnio.value;
+  const marca  = selMarca.value;
+  const modelo = selModelo.value;
+  if (!anio || !marca || !modelo) return;
+
+  const precio_apertura      = parseFloat(inpApertura.value) || 0;
+  const precio_copia_llave   = parseFloat(inpCopia.value)    || 0;
+  const precio_llave_perdida = parseFloat(inpPerdida.value)  || 0;
+
+  try {
+    const res  = await fetch('/api/precios-vehiculos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anio, marca, modelo, precio_apertura, precio_copia_llave, precio_llave_perdida })
+    });
+    const data = await res.json();
+    if (data.exito) {
+      const idx = preciosVehiculos.findIndex(p => p.id === data.item.id);
+      if (idx !== -1) preciosVehiculos[idx] = data.item;
+      else            preciosVehiculos.push(data.item);
+      showToast(`${anio} ${marca} ${modelo} guardado`, 'success');
+      aplicarFiltroVehiculos();
+    } else {
+      showToast(data.mensaje || 'Error al guardar', 'error');
+    }
+  } catch {
+    showToast('Error de conexión', 'error');
+  }
+}
+
+async function eliminarPrecioVehiculo(id) {
+  const item = preciosVehiculos.find(p => p.id === id);
+  if (!item) return;
+  if (!confirm(`¿Eliminar precio de ${item.anio} ${item.marca} ${item.modelo}?`)) return;
+  try {
+    const res  = await fetch(`/api/precios-vehiculos/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.exito) {
+      preciosVehiculos = preciosVehiculos.filter(p => p.id !== id);
+      showToast('Precio eliminado', 'info');
+      aplicarFiltroVehiculos();
+    }
+  } catch {
+    showToast('Error de conexión', 'error');
+  }
+}
+
+function editarPrecioVehiculo(id) {
+  const item = preciosVehiculos.find(p => p.id === id);
+  if (!item) return;
+
+  selAnio.value = item.anio;
+  selAnio.dispatchEvent(new Event('change'));
+
+  setTimeout(async () => {
+    selMarca.value = item.marca;
+    selMarca.dispatchEvent(new Event('change'));
+    setTimeout(() => {
+      selModelo.value   = item.modelo;
+      selModelo.dispatchEvent(new Event('change'));
+      inpApertura.value = item.precio_apertura;
+      inpCopia.value    = item.precio_copia_llave;
+      inpPerdida.value  = item.precio_llave_perdida;
+      document.getElementById('vehiculo-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+  }, 300);
+}
+
+function actualizarPreciosGuardados() {
+  const badge = document.getElementById('vehiculo-count-badge');
+  badge.textContent = `${preciosVehiculos.length} vehículo${preciosVehiculos.length !== 1 ? 's' : ''}`;
+}
+
+function aplicarFiltroVehiculos() {
+  const q = searchInp.value.trim().toLowerCase();
+  preciosVehFiltered = q
+    ? preciosVehiculos.filter(p => {
+        const haystack = `${p.anio} ${p.marca} ${p.modelo}`.toLowerCase();
+        return q.split(/\s+/).every(token => haystack.includes(token));
+      })
+    : [...preciosVehiculos];
+
+  renderPreciosVehiculos();
+  actualizarPreciosGuardados();
+
+  const label = document.getElementById('veh-total-label');
+  label.textContent = q ? `${preciosVehFiltered.length} resultado${preciosVehFiltered.length !== 1 ? 's' : ''}` : '';
+}
+
+function renderPreciosVehiculos() {
+  const tbody = document.getElementById('vehiculo-tbody');
+  tbody.innerHTML = '';
+
+  if (preciosVehFiltered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="catalogo-empty">
+      ${searchInp.value ? 'Sin resultados para la búsqueda.' : 'No hay precios por vehículo configurados aún.'}
+    </td></tr>`;
+    return;
+  }
+
+  const fmt = v => Number(v) === 0
+    ? '<span class="precio-cero">—</span>'
+    : `<span class="catalogo-precio auto">$${Number(v).toFixed(2)}</span>`;
+
+  preciosVehFiltered.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="veh-anio-cell">${item.anio}</td>
+      <td class="veh-marca-cell">${item.marca}</td>
+      <td class="veh-modelo-cell">${item.modelo}</td>
+      <td>${fmt(item.precio_apertura)}</td>
+      <td>${fmt(item.precio_copia_llave)}</td>
+      <td>${fmt(item.precio_llave_perdida)}</td>
+      <td class="catalogo-actions">
+        <button class="btn-icon" title="Editar" data-id="${item.id}" data-accion="editar">✏️</button>
+        <button class="btn-icon danger" title="Eliminar" data-id="${item.id}" data-accion="eliminar">🗑️</button>
+      </td>`;
+    tr.querySelectorAll('[data-accion]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (btn.dataset.accion === 'editar')   editarPrecioVehiculo(Number(btn.dataset.id));
+        if (btn.dataset.accion === 'eliminar') eliminarPrecioVehiculo(Number(btn.dataset.id));
+      });
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+async function cargarPreciosVehiculos() {
+  try {
+    preciosVehiculos = await fetch('/api/precios-vehiculos').then(r => r.json());
+    aplicarFiltroVehiculos();
+  } catch {
+    showToast('Error cargando precios de vehículos', 'error');
+  }
+}
+
+saveBtn.addEventListener('click', guardarPrecioVehiculo);
+searchInp.addEventListener('input', aplicarFiltroVehiculos);
+
+// ── Precios de Apertura por Marca ─────────────────────────────────────────────
+const MARCAS_LIST = [
+  'Acura','Alfa Romeo','Audi','BMW','Buick','Cadillac','Chevrolet',
+  'Chrysler','Dodge','Ferrari','Fiat','Ford','Genesis','GMC',
+  'Honda','Hyundai','Infiniti','Jaguar','Jeep','Kia','Land Rover',
+  'Lexus','Lincoln','Maserati','Mazda','Mercedes-Benz','Mercury',
+  'Mini','Mitsubishi','Nissan','Oldsmobile','Pontiac','Porsche',
+  'Ram','Saab','Saturn','Scion','Smart','Subaru','Suzuki',
+  'Tesla','Toyota','Volkswagen','Volvo',
+];
+
+let preciosApertura = [];
+let preciosAperturaFiltered = [];
+
+const apMarca  = document.getElementById('ap-marca');
+const apPrecio = document.getElementById('ap-precio');
+const apNotas  = document.getElementById('ap-notas');
+const apSearch = document.getElementById('ap-search');
+
+// Poblar select de marcas
+MARCAS_LIST.forEach(m => {
+  const o = document.createElement('option');
+  o.value = o.textContent = m;
+  apMarca.appendChild(o);
+});
+
+// Al seleccionar marca, pre-rellenar si ya existe
+apMarca.addEventListener('change', () => {
+  const existing = preciosApertura.find(p => p.marca === apMarca.value);
+  apPrecio.value = existing ? existing.precio_apertura : '';
+  apNotas.value  = existing ? existing.notas : '';
+});
+
+async function guardarAperturaMarca() {
+  const marca          = apMarca.value;
+  const precio_apertura = parseFloat(apPrecio.value) || 0;
+  const notas          = apNotas.value.trim();
+  if (!marca) { showToast('Selecciona una marca', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/precios-apertura-marca', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ marca, precio_apertura, notas }),
+    });
+    const data = await res.json();
+    if (data.exito) {
+      const idx = preciosApertura.findIndex(p => p.id === data.item.id);
+      if (idx !== -1) preciosApertura[idx] = data.item;
+      else            preciosApertura.push(data.item);
+      showToast(`${marca} guardado`, 'success');
+      apMarca.value = ''; apPrecio.value = ''; apNotas.value = '';
+      aplicarFiltroApertura();
+    } else {
+      showToast(data.mensaje || 'Error al guardar', 'error');
+    }
+  } catch { showToast('Error de conexión', 'error'); }
+}
+
+async function eliminarAperturaMarca(id) {
+  const item = preciosApertura.find(p => p.id === id);
+  if (!item || !confirm(`¿Eliminar precio de ${item.marca}?`)) return;
+  try {
+    const res  = await fetch(`/api/precios-apertura-marca/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.exito) {
+      preciosApertura = preciosApertura.filter(p => p.id !== id);
+      showToast('Eliminado', 'info');
+      aplicarFiltroApertura();
+    }
+  } catch { showToast('Error de conexión', 'error'); }
+}
+
+function editarAperturaMarca(id) {
+  const item = preciosApertura.find(p => p.id === id);
+  if (!item) return;
+  apMarca.value  = item.marca;
+  apPrecio.value = item.precio_apertura;
+  apNotas.value  = item.notas;
+  document.getElementById('apertura-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function aplicarFiltroApertura() {
+  const q = apSearch.value.trim().toLowerCase();
+  preciosAperturaFiltered = q
+    ? preciosApertura.filter(p => p.marca.toLowerCase().includes(q))
+    : [...preciosApertura];
+
+  const badge = document.getElementById('apertura-count-badge');
+  badge.textContent = `${preciosApertura.length} marca${preciosApertura.length !== 1 ? 's' : ''}`;
+
+  const label = document.getElementById('ap-total-label');
+  label.textContent = q ? `${preciosAperturaFiltered.length} resultado${preciosAperturaFiltered.length !== 1 ? 's' : ''}` : '';
+
+  renderAperturaMarca();
+}
+
+function renderAperturaMarca() {
+  const tbody = document.getElementById('apertura-tbody');
+  tbody.innerHTML = '';
+
+  if (preciosAperturaFiltered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="catalogo-empty">${apSearch.value ? 'Sin resultados.' : 'Cargando...'}</td></tr>`;
+    return;
+  }
+
+  const EUROPEAS = new Set(['Alfa Romeo','Audi','BMW','Ferrari','Fiat','Jaguar','Land Rover','Maserati','Mercedes-Benz','Mini','Porsche','Volkswagen','Volvo']);
+
+  preciosAperturaFiltered.forEach(item => {
+    const esEuropea = EUROPEAS.has(item.marca);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="veh-marca-cell">
+        ${esEuropea ? '<span class="marca-eu-badge">🇪🇺</span> ' : ''}${item.marca}
+      </td>
+      <td><span class="catalogo-precio ${esEuropea ? 'emergencia' : ''}">$${Number(item.precio_apertura).toFixed(2)}</span></td>
+      <td class="ap-notas-cell">${item.notas || '<span class="precio-cero">—</span>'}</td>
+      <td class="catalogo-actions">
+        <button class="btn-icon" title="Editar" data-id="${item.id}" data-accion="editar">✏️</button>
+        <button class="btn-icon danger" title="Eliminar" data-id="${item.id}" data-accion="eliminar">🗑️</button>
+      </td>`;
+    tr.querySelectorAll('[data-accion]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (btn.dataset.accion === 'editar')   editarAperturaMarca(Number(btn.dataset.id));
+        if (btn.dataset.accion === 'eliminar') eliminarAperturaMarca(Number(btn.dataset.id));
+      });
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+async function cargarPreciosAperturaMarca() {
+  try {
+    preciosApertura = await fetch('/api/precios-apertura-marca').then(r => r.json());
+    aplicarFiltroApertura();
+  } catch { showToast('Error cargando apertura por marca', 'error'); }
+}
+
+document.getElementById('ap-save-btn').addEventListener('click', guardarAperturaMarca);
+apSearch.addEventListener('input', aplicarFiltroApertura);
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 cargarDatos();
 cargarCatalogo();
+cargarAnios();
+cargarPreciosVehiculos();
+cargarPreciosAperturaMarca();
 conectarSSE();

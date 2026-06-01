@@ -422,9 +422,22 @@ body {
 
 .catalogo-form-grid {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-end;
+}
+
+/* Fila 1: emoji pequeño + nombre ancho */
+.cat-row { display: flex; gap: 12px; }
+
+.cat-row-id { align-items: flex-end; }
+.cat-emoji-group { flex: 0 0 72px; }
+.cat-nombre-group { flex: 1; }
+
+/* Fila 2: 4 precios en grid equitativo */
+.cat-row-precios {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
 }
 
 .form-group {
@@ -536,6 +549,17 @@ body {
 
 .catalogo-actions { display: flex; gap: 6px; }
 
+/* Sticky actions column en tablas con scroll horizontal */
+.catalogo-table th:last-child,
+.catalogo-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: -4px 0 8px rgba(0,0,0,.25);
+  z-index: 1;
+}
+.catalogo-table thead th:last-child { background: var(--surface2); }
+
 .btn-icon {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -556,7 +580,291 @@ body {
   font-size: 14px;
 }
 
+/* ── Sección Precios por Vehículo ────────────────────────────────────────────── */
+.vehiculo-section-header {
+  margin-top: 36px;
+  margin-bottom: 16px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.vehiculo-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.vehiculo-section-title span:first-child { font-size: 20px; }
+.vehiculo-section-title h3 { font-size: 16px; font-weight: 700; }
+
+.vehiculo-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: rgba(88,166,255,.15);
+  color: var(--info);
+  letter-spacing: .4px;
+}
+
+.vehiculo-section-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.vehiculo-form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vehiculo-selectors {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vehiculo-selectors .form-group { flex: 1; min-width: 140px; }
+
+.vehiculo-prices {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.vehiculo-prices .form-group { flex: 1; min-width: 160px; }
+
+.vehiculo-save-group { flex: 0 0 auto; }
+
+.form-group select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+  cursor: pointer;
+}
+
+.form-group select:focus  { border-color: var(--accent); }
+.form-group select:disabled { opacity: .45; cursor: not-allowed; }
+.form-group input:disabled  { opacity: .45; cursor: not-allowed; }
+
+.vehiculo-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.vehiculo-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.vehiculo-table-toolbar input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 7px 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.vehiculo-table-toolbar input:focus { border-color: var(--accent); }
+
+.vehiculo-total-label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.vehiculo-table { width: 100%; }
+
+.veh-anio-cell  { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); width: 70px; }
+.veh-marca-cell { font-weight: 600; }
+.veh-modelo-cell { color: var(--text); }
+
+.apertura-badge { background: rgba(63,185,80,.15); color: var(--success); }
+
+.apertura-save-wrap { flex: 0 0 auto; }
+
+.marca-eu-badge { font-size: 13px; }
+
+.ap-notas-cell {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 320px;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+
+/* Tablet — ≤ 768px */
+@media (max-width: 768px) {
+  /* Header */
+  .header { padding: 12px 16px; }
+  .header h1 { font-size: 15px; }
+  .time { display: none; }
+
+  /* Stats */
+  .stats-bar {
+    padding: 12px 16px;
+    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .stat-card { min-width: unset; padding: 12px 14px; }
+  .stat-num  { font-size: 24px; }
+
+  /* Tabs */
+  .tabs { padding: 0 16px; overflow-x: auto; }
+  .tab-btn { padding: 11px 16px; font-size: 13px; white-space: nowrap; }
+
+  /* Tab content */
+  .tab-content { padding: 16px 16px 32px; }
+
+  /* Toolbar */
+  .toolbar { flex-direction: column; gap: 8px; }
+  .toolbar input  { min-width: unset; width: 100%; }
+  .toolbar select { width: 100%; }
+
+  /* Cards grid */
+  .cards-grid { grid-template-columns: 1fr; }
+  .cerrajeros-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+  /* Catálogo form */
+  .catalogo-form-grid { gap: 10px; }
+  .cat-row-precios { grid-template-columns: repeat(2, 1fr); }
+  .form-group { min-width: unset; }
+  .catalogo-form-actions { flex-wrap: wrap; }
+
+  /* Catálogo table — scroll horizontal */
+  .catalogo-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .catalogo-table { min-width: 600px; }
+
+  /* Vehículo form — layout columna completa */
+  .vehiculo-form-card { flex-direction: column; }
+  .vehiculo-selectors {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  .vehiculo-selectors .form-group { min-width: unset; width: 100%; flex: none; }
+  .vehiculo-prices {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    align-items: end;
+    width: 100%;
+  }
+  .vehiculo-prices .form-group { min-width: unset; flex: none; }
+  .vehiculo-save-group {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .vehiculo-save-group .btn { width: 100%; }
+  .apertura-save-wrap { width: 100%; }
+  .apertura-save-wrap .btn { width: 100%; }
+
+  /* Apertura form */
+  .vehiculo-form-card > .vehiculo-selectors { flex-direction: column; }
+
+  /* Vehículo table — scroll horizontal */
+  .vehiculo-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .vehiculo-table { min-width: 560px; }
+
+  /* Modal */
+  .modal { padding: 20px; }
+  .modal-actions { flex-direction: column; }
+  .modal-actions .btn { width: 100%; text-align: center; }
+
+  /* Toast */
+  .toast { left: 16px; right: 16px; bottom: 16px; text-align: center; }
+}
+
+/* Mobile — ≤ 480px */
+@media (max-width: 480px) {
+  /* Header */
+  .header { padding: 10px 14px; gap: 8px; }
+  .logo { font-size: 22px; }
+  .header h1 { font-size: 14px; }
+  .subtitle { display: none; }
+  .badge { font-size: 11px; padding: 2px 8px; }
+
+  /* Stats — 2 columnas en móvil */
+  .stats-bar {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  /* El último stat ocupa ancho completo si es impar */
+  .stat-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .stat-num  { font-size: 22px; }
+  .stat-label { font-size: 11px; }
+
+  /* Tabs */
+  .tabs { padding: 0 14px; }
+  .tab-btn { padding: 10px 13px; font-size: 12px; }
+
+  /* Tab content */
+  .tab-content { padding: 14px 14px 28px; }
+
+  /* Servicio card */
+  .servicio-card { padding: 14px; }
+  .card-name { font-size: 15px; }
+
+  /* Catálogo table min-width reducido */
+  .catalogo-table { min-width: 500px; }
+  .catalogo-table th, .catalogo-table td { padding: 10px 12px; }
+
+  /* Vehículo table */
+  .vehiculo-table { min-width: 480px; }
+
+  /* Sección vehículo */
+  .vehiculo-section-title { flex-wrap: wrap; gap: 6px; }
+  .vehiculo-section-title h3 { font-size: 14px; }
+
+  /* Catálogo form mobile */
+  .cat-row-precios { grid-template-columns: repeat(2, 1fr); }
+
+  /* Vehículo prices — columna única en móvil muy pequeño */
+  .vehiculo-prices { grid-template-columns: 1fr; }
+  .vehiculo-save-group { grid-column: 1; }
+
+  /* Form card */
+  .vehiculo-form-card { padding: 14px; }
+  .catalogo-form-card { padding: 14px 16px; }
+
+  /* Toolbar vehículo */
+  .vehiculo-table-toolbar { padding: 10px 12px; }
+
+  /* Modal fullscreen */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    border-radius: 14px 14px 0 0;
+    max-height: 90vh;
+    max-width: 100%;
+  }
+}

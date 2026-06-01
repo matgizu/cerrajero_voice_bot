@@ -73,12 +73,31 @@ async function initDB() {
       precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0,
       activo               BOOLEAN NOT NULL DEFAULT true
     );
+
+    CREATE TABLE IF NOT EXISTS precios_vehiculos (
+      id                   SERIAL PRIMARY KEY,
+      anio                 TEXT          NOT NULL,
+      marca                TEXT          NOT NULL,
+      modelo               TEXT          NOT NULL,
+      precio_apertura      NUMERIC(10,2) NOT NULL DEFAULT 0,
+      precio_copia_llave   NUMERIC(10,2) NOT NULL DEFAULT 0,
+      precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0,
+      UNIQUE (anio, marca, modelo)
+    );
+
+    CREATE TABLE IF NOT EXISTS precios_apertura_marca (
+      id               SERIAL PRIMARY KEY,
+      marca            TEXT          NOT NULL UNIQUE,
+      precio_apertura  NUMERIC(10,2) NOT NULL DEFAULT 0,
+      notas            TEXT          NOT NULL DEFAULT ''
+    );
   `);
 
   // Migraciones para tablas ya existentes (añade columnas si no existen)
   await pool.query(`
     ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_copia_llave   NUMERIC(10,2) NOT NULL DEFAULT 0;
     ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0;
+    ALTER TABLE precios_vehiculos ADD COLUMN IF NOT EXISTS precio_apertura NUMERIC(10,2) NOT NULL DEFAULT 0;
   `);
 
   // Seed cerrajeros si la tabla está vacía

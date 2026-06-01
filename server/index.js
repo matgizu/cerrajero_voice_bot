@@ -23,6 +23,8 @@ const { initDB } = require('./db');
 const { manejarFunctionCall, listarServicios, guardarServicio, actualizarEstado, reasignarCerrajero } = require('./services');
 const { listarCerrajeros, toggleDisponibilidad } = require('./cerrajeros');
 const { listarCatalogo, crearServicioCatalogo, actualizarServicioCatalogo, eliminarServicioCatalogo } = require('./catalogo');
+const { getYears, getMakes, getModels, listarPreciosVehiculos, upsertPrecioVehiculo, eliminarPrecioVehiculo } = require('./precios-vehiculos');
+const { listarPreciosAperturaMarca, upsertPrecioAperturaMarca, eliminarPrecioAperturaMarca } = require('./precios-apertura-marca');
 const { handleTwilioStream } = require('./elevenlabs-bridge');
 const emitter = require('./events');
 
@@ -114,6 +116,36 @@ app.patch('/api/catalogo/:id', async (req, res) => {
 
 app.delete('/api/catalogo/:id', async (req, res) => {
   const resultado = await eliminarServicioCatalogo(req.params.id);
+  res.status(resultado.exito ? 200 : 404).json(resultado);
+});
+
+// Precios por vehículo
+app.get('/api/vehiculos/years',  (_req, res) => res.json(getYears()));
+app.get('/api/vehiculos/makes',  (req, res)  => res.json(getMakes(req.query.year)));
+app.get('/api/vehiculos/models', (req, res)  => res.json(getModels(req.query.year, req.query.make)));
+
+app.get('/api/precios-vehiculos', async (_req, res) => {
+  res.json(await listarPreciosVehiculos());
+});
+app.post('/api/precios-vehiculos', async (req, res) => {
+  const resultado = await upsertPrecioVehiculo(req.body);
+  res.status(resultado.exito ? 200 : 400).json(resultado);
+});
+app.delete('/api/precios-vehiculos/:id', async (req, res) => {
+  const resultado = await eliminarPrecioVehiculo(req.params.id);
+  res.status(resultado.exito ? 200 : 404).json(resultado);
+});
+
+// Precios apertura por marca
+app.get('/api/precios-apertura-marca', async (_req, res) => {
+  res.json(await listarPreciosAperturaMarca());
+});
+app.post('/api/precios-apertura-marca', async (req, res) => {
+  const resultado = await upsertPrecioAperturaMarca(req.body);
+  res.status(resultado.exito ? 200 : 400).json(resultado);
+});
+app.delete('/api/precios-apertura-marca/:id', async (req, res) => {
+  const resultado = await eliminarPrecioAperturaMarca(req.params.id);
   res.status(resultado.exito ? 200 : 404).json(resultado);
 });
 
