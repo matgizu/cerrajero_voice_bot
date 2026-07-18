@@ -1,5 +1,7 @@
 # Configuración del agente de ElevenLabs (vía telefónica)
 
+> **Nota:** el prompt VIVO del agente se administra por API y puede estar más actualizado que esta copia. Cambio 2026-07-18: tono natural sin interjecciones de caricatura (prohibido "¡Ah, caramba!", "¡Wepa!", etc.); arranques reales: "Okay.", "Dígame.", "Mire.", "Está bien."
+
 La llamada telefónica entra por Twilio y se conecta al agente de **ElevenLabs
 Conversational AI** (`server/elevenlabs-bridge.js`). El "cerebro" de ese agente
 se configura en el dashboard de ElevenLabs — este documento tiene todo listo
