@@ -37,6 +37,24 @@ const OUTPUT_COST_PER_SEC = 25 * 1.05  / 1_000_000; // $0.00002625/seg salida
 const PORT = process.env.PORT || 3000;
 const app = express();
 
+// Un error de BD en una ruta async no debe tumbar el proceso completo.
+process.on('unhandledRejection', (err) => {
+  console.error('❌ unhandledRejection:', err?.stack || err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('❌ uncaughtException:', err?.stack || err);
+});
+
+/** Envuelve un handler async: errores → 500 JSON en vez de crash. */
+const safe = (fn) => async (req, res) => {
+  try {
+    await fn(req, res);
+  } catch (err) {
+    console.error(`❌ Error en ${req.method} ${req.path}:`, err?.stack || err);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+};
+
 app.use(cors());
 app.use(express.json());
 
@@ -70,10 +88,10 @@ app.get('/api/eventos', (req, res) => {
 // ── Rutas HTTP ─────────────────────────────────────────────────────────────────
 
 // Servicios
-app.get('/api/servicios', async (_req, res) => {
+app.get('/api/servicios', safe(async (_req, res) => {
   const lista = await listarServicios();
   res.json({ total: lista.length, servicios: lista });
-});
+}));
 
 app.patch('/api/servicios/:id/estado', async (req, res) => {
   const { estado } = req.body;
@@ -88,9 +106,9 @@ app.patch('/api/servicios/:id/asignar', async (req, res) => {
 });
 
 // Cerrajeros
-app.get('/api/cerrajeros', async (_req, res) => {
+app.get('/api/cerrajeros', safe(async (_req, res) => {
   res.json(await listarCerrajeros());
-});
+}));
 
 app.patch('/api/cerrajeros/:id/disponibilidad', async (req, res) => {
   const cerrajero = await toggleDisponibilidad(req.params.id);
@@ -100,9 +118,9 @@ app.patch('/api/cerrajeros/:id/disponibilidad', async (req, res) => {
 });
 
 // Catálogo de servicios
-app.get('/api/catalogo', async (_req, res) => {
+app.get('/api/catalogo', safe(async (_req, res) => {
   res.json(await listarCatalogo());
-});
+}));
 
 app.post('/api/catalogo', async (req, res) => {
   const resultado = await crearServicioCatalogo(req.body);
@@ -160,7 +178,8 @@ app.get('/admin', (_req, res) => {
 app.get('/api/voice-config', (_req, res) => {
   const elevenlabs = Boolean(process.env.ELEVENLABS_AGENT_ID && process.env.ELEVENLABS_API_KEY);
   const gemini     = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'TU_API_KEY_AQUI');
-  res.json({ engine: elevenlabs ? 'elevenlabs' : gemini ? 'gemini' : 'none' });
+  // Web usa Gemini (rápido y barato); ElevenLabs queda para la vía telefónica.
+  res.json({ engine: gemini ? 'gemini' : elevenlabs ? 'elevenlabs' : 'none' });
 });
 
 // ── ElevenLabs — Signed URL para el browser ────────────────────────────────────
@@ -200,19 +219,19 @@ app.post('/twilio/incoming', (req, res) => {
 });
 
 // ── ElevenLabs — Webhooks de Tool Calls ──────────────────────────────────────
-app.post('/api/tools/guardar_servicio', async (req, res) => {
+app.post('/api/tools/guardar_servicio', safe(async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook guardar_servicio:', JSON.stringify(params));
   const resultado = await guardarServicio(params);
   res.json({ result: resultado.mensaje || 'Servicio procesado' });
-});
+}));
 
-app.post('/api/tools/consultar_precio', async (req, res) => {
+app.post('/api/tools/consultar_precio', safe(async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook consultar_precio:', JSON.stringify(params));
   const resultado = await consultarPrecio(params);
   res.json({ result: resultado.respuesta_sugerida || resultado.mensaje || 'Sin precio disponible' });
-});
+}));
 
 app.get('/api/health', (_req, res) => {
   res.json({
