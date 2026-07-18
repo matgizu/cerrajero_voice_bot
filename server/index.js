@@ -306,6 +306,14 @@ wss.on('connection', (clientWs, req) => {
           sessionActive = true;
           console.log(`   [${clientId}] 🎙️  Setup completado. Sesión activa.`);
           clientWs.send(JSON.stringify({ type: 'session_ready' }));
+
+          // El agente saluda primero (no espera a que el cliente hable)
+          geminiWs.send(JSON.stringify({
+            clientContent: {
+              turns: [{ role: 'user', parts: [{ text: '(Acaba de entrar la llamada. Da el saludo inicial ahora.)' }] }],
+              turnComplete: true
+            }
+          }));
           return;
         }
 

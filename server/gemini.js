@@ -21,16 +21,16 @@ const VOICE = process.env.AGENT_VOICE || 'Zephyr';
 
 const PROMPT_BASE = `
 IDENTIDAD
-Eres el asistente de voz de Cerrajería Express 24/7 en Puerto Rico. Hablas español puertorriqueño natural: cálido, directo y de confianza, tratando al cliente de "usted". Usa vocabulario boricua con naturalidad y sin exagerar: "carro" (nunca "coche"), "guagua" para SUV/pickup, "pueblo" para el municipio, "urbanización", "ahora mismo", "no se apure", "con gusto", "¡claro que sí!". Suenas como una persona real de la isla atendiendo el teléfono, nunca como un robot leyendo un guion.
+Eres el asistente de voz de Cerrajero Puerto Rico, servicio de cerrajería 24/7 en toda la isla. Hablas español puertorriqueño natural: cálido, directo y de confianza, tratando al cliente de "usted". Usa vocabulario boricua con naturalidad y sin exagerar: "carro" (nunca "coche"), "guagua" para SUV/pickup, "pueblo" para el municipio, "urbanización", "ahora mismo", "no se apure", "con gusto", "¡claro que sí!". Suenas como una persona real de la isla atendiendo el teléfono, nunca como un robot leyendo un guion.
 
 CÓMO HABLAS (es una llamada de voz)
-- Frases cortas: máximo 2 oraciones por turno. UNA pregunta a la vez.
+- Responde AL INSTANTE y corto: máximo 2 oraciones por turno. UNA pregunta a la vez.
 - Los precios dilos en palabras: "sesenta y cinco dólares", no "$65".
 - Si el cliente está nervioso o alterado, primero tranquiliza: "No se apure, que eso lo resolvemos ahora mismo."
 - Nunca leas listas ni menús. Conversa.
 
 FLUJO DE LA LLAMADA (en este orden, natural, sin sonar a formulario)
-1. Contesta corto: "Cerrajería Express, buenas. ¿En qué le puedo ayudar?"
+1. SALUDO INICIAL: tú hablas primero, apenas conecte la llamada, exactamente así: "Cerrajero Puerto Rico, {{SALUDO}}, ¿en qué le puedo ayudar?" — y nada más; espera a que el cliente responda.
 2. Identifica el problema: carro cerrado, puerta de la casa, cambio de cerradura, caja fuerte, llaves.
 3. Si es CARRO: pregunta marca y modelo. En cuanto la tengas, llama a consultar_precio y dile el precio con sus condiciones. No sigas al paso 4 sin haber cotizado.
 4. Pregunta el pueblo y la dirección exacta (urbanización, calle, número). Si hay personas, niños o mascotas encerradas, márcalo como emergencia y agiliza.
@@ -89,6 +89,16 @@ ${lineas.join('\n')}
 `;
 }
 
+/** Saludo según la hora de Puerto Rico (AST): buenos días / buenas tardes / buenas noches. */
+function saludoPR() {
+  const hora = Number(new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', hour12: false, timeZone: 'America/Puerto_Rico',
+  }).format(new Date()));
+  if (hora >= 5 && hora < 12) return 'buenos días';
+  if (hora >= 12 && hora < 19) return 'buenas tardes';
+  return 'buenas noches';
+}
+
 async function buildSystemInstruction() {
   let filas = CATALOGO_FALLBACK;
   try {
@@ -99,7 +109,7 @@ async function buildSystemInstruction() {
   } catch (err) {
     console.warn('⚠️  No pude leer el catálogo de la BD para el prompt, uso fallback:', err.message);
   }
-  return (PROMPT_BASE + seccionCatalogo(filas)).trim();
+  return (PROMPT_BASE.replaceAll('{{SALUDO}}', saludoPR()) + seccionCatalogo(filas)).trim();
 }
 
 // ── Definición de herramientas (Function Calling) ───────────────────────────
@@ -211,7 +221,24 @@ async function buildSetupMessage() {
             }
           }
         },
+        // Sin "pensamiento" previo: responde de una (clave para la latencia)
+        thinkingConfig: {
+          thinkingBudget: 0
+        },
       },
+      // VAD más agresivo: detecta el fin del habla a los ~400ms de silencio
+      // en vez del default (mucho más lento). Baja la latencia percibida.
+      realtimeInputConfig: {
+        automaticActivityDetection: {
+          startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+          endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+          prefixPaddingMs: 100,
+          silenceDurationMs: 400
+        }
+      },
+      // Transcripciones en vivo para la UI
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
       systemInstruction: {
         parts: [
           {

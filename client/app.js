@@ -348,7 +348,7 @@ async function startMicrophone() {
 
     const source = state.captureContext.createMediaStreamSource(state.micStream);
     state.workletNode = new AudioWorkletNode(state.captureContext, 'microphone-capture-processor', {
-      processorOptions: { bufferSize: 2048 }
+      processorOptions: { bufferSize: 1024 }
     });
 
     state.workletNode.port.onmessage = (e) => {
