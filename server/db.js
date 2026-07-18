@@ -142,6 +142,22 @@ async function initDB() {
   const { seedPreciosAperturaMarca } = require('./precios-apertura-marca');
   await seedPreciosAperturaMarca();
 
+  // Garantizar que el especialista exista aunque la tabla ya tuviera datos
+  // (bases desplegadas antes de CRR-006). Idempotente: no pisa ediciones.
+  const especialista = CERRAJEROS_SEED.find(c => c.es_especialista);
+  if (especialista) {
+    await pool.query(
+      `INSERT INTO cerrajeros (id, nombre, telefono, zonas, disponible, callmebot_apikey, es_especialista)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+      [especialista.id, especialista.nombre, especialista.telefono, JSON.stringify(especialista.zonas),
+       especialista.disponible, especialista.callmebot_apikey, true]
+    );
+    await pool.query(
+      `UPDATE cerrajeros SET es_especialista = true WHERE id = $1`,
+      [especialista.id]
+    );
+  }
+
   console.log('  ✅ Base de datos lista\n');
 }
 
