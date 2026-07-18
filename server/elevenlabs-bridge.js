@@ -149,11 +149,18 @@ function handleTwilioStream(twilioWs) {
           const pcmEl  = Buffer.from(msg.audio_event.audio_base_64, 'base64');
           const pcm8   = downsampleTo8(pcmEl, outputRate);
           const ulaw   = pcm16ToUlaw(pcm8);
-          twilioWs.send(JSON.stringify({
-            event: 'media',
-            streamSid,
-            media: { payload: ulaw.toString('base64') }
-          }));
+          // Twilio limita el tamaño de cada mensaje WS: enviar en frames de
+          // 200ms (1600 bytes μ-law @8kHz). Un chunk grande (frase completa)
+          // en un solo mensaje dispara el error 31924 y Twilio cuelga.
+          const FRAME = 1600;
+          for (let off = 0; off < ulaw.length; off += FRAME) {
+            if (twilioWs.readyState !== WebSocket.OPEN) break;
+            twilioWs.send(JSON.stringify({
+              event: 'media',
+              streamSid,
+              media: { payload: ulaw.subarray(off, Math.min(off + FRAME, ulaw.length)).toString('base64') }
+            }));
+          }
           break;
         }
 
@@ -182,8 +189,8 @@ function handleTwilioStream(twilioWs) {
   });
 
   elWs.on('error', (err) => console.error('❌ ElevenLabs WS error:', err.message));
-  elWs.on('close', () => {
-    console.log('ElevenLabs WS cerrado');
+  elWs.on('close', (code, reason) => {
+    console.log(`ElevenLabs WS cerrado. Código: ${code} | Razón: "${reason?.toString() || ''}"`);
     if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
   });
 
@@ -228,8 +235,8 @@ function handleTwilioStream(twilioWs) {
     }
   });
 
-  twilioWs.on('close', () => {
-    console.log('Twilio WS cerrado');
+  twilioWs.on('close', (code, reason) => {
+    console.log(`Twilio WS cerrado. Código: ${code} | Razón: "${reason?.toString() || ''}"`);
     if (elWs.readyState === WebSocket.OPEN) elWs.close();
   });
 
