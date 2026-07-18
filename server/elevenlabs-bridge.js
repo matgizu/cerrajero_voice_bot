@@ -1,6 +1,7 @@
 'use strict';
 
 const WebSocket = require('ws');
+const { saludoPR } = require('./gemini');
 
 // ── Tabla μ-law decode (precalculada) ─────────────────────────────────────────
 const ULAW_DECODE = new Int16Array(256);
@@ -116,6 +117,11 @@ function handleTwilioStream(twilioWs) {
 
   elWs.on('open', () => {
     console.log('✅ ElevenLabs WS abierto (bridge telefónico)');
+    // Saludo según la hora de Puerto Rico → variable {{saludo}} del first_message
+    elWs.send(JSON.stringify({
+      type: 'conversation_initiation_client_data',
+      dynamic_variables: { saludo: saludoPR() }
+    }));
   });
 
   elWs.on('message', (raw) => {

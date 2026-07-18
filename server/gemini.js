@@ -264,6 +264,7 @@ module.exports = {
   buildSetupMessage,
   buildSystemInstruction,
   buildGeminiUrl,
+  saludoPR,
   MODEL,
   VOICE
 };
