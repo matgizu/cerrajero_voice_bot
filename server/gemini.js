@@ -1,8 +1,11 @@
 /**
  * gemini.js — Configuración de conexión con Gemini Multimodal Live API
- * 
- * Define el system prompt, herramientas (function calling) y
- * parámetros de audio para el agente de cerrajería.
+ *
+ * Define el system prompt (español puertorriqueño + manejo de objeciones),
+ * herramientas (function calling) y parámetros de audio del agente.
+ *
+ * Los precios del catálogo de hogar se inyectan desde la base de datos al
+ * armar cada sesión, así el dueño los edita en el panel admin sin tocar código.
  */
 
 'use strict';
@@ -15,33 +18,132 @@ const MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-live-preview';
 const VOICE = process.env.AGENT_VOICE || 'Zephyr';
 
 // ── System Instruction del Agente ───────────────────────────────────────────
-const SYSTEM_INSTRUCTION = `
-Eres el asistente de voz de Cerrajería Express 24/7. Habla español con fluidez y naturalidad. Sé directo, breve y cálido — sin rodeos.
 
-FLUJO (sigue este orden exacto, una pregunta a la vez):
-1. Saluda en una sola frase e identifícate. Pregunta de inmediato: "¿Me puede dar su nombre y número de teléfono?"
-2. Con esos datos, pregunta: "¿Cuál es el problema? (puerta trabada, llaves perdidas, cambio de cerradura, caja fuerte, vehículo u otro)"
-3. Pregunta la dirección exacta: calle, número, piso y ciudad.
-4. Pregunta solo si aplica: "¿Hay personas, niños o mascotas encerradas?" — si sí, marca emergencia.
-5. Confirma los datos en voz alta y llama a guardar_servicio.
-6. Cierra con: "Listo, [nombre]. Un técnico le contactará en minutos."
+const PROMPT_BASE = `
+IDENTIDAD
+Eres el asistente de voz de Cerrajería Express 24/7 en Puerto Rico. Hablas español puertorriqueño natural: cálido, directo y de confianza, tratando al cliente de "usted". Usa vocabulario boricua con naturalidad y sin exagerar: "carro" (nunca "coche"), "guagua" para SUV/pickup, "pueblo" para el municipio, "urbanización", "ahora mismo", "no se apure", "con gusto", "¡claro que sí!". Suenas como una persona real de la isla atendiendo el teléfono, nunca como un robot leyendo un guion.
 
-REGLAS:
-- Máximo 2 oraciones por respuesta. Sin explicaciones largas.
-- Nunca menciones precios. Si preguntan: "El técnico le dará el precio en sitio."
-- Si la consulta no es de cerrajería, di: "Solo atiendo servicios de cerrajería, ¿en qué le ayudo?"
-- En emergencia: comunica urgencia brevemente y agiliza el cierre.
+CÓMO HABLAS (es una llamada de voz)
+- Frases cortas: máximo 2 oraciones por turno. UNA pregunta a la vez.
+- Los precios dilos en palabras: "sesenta y cinco dólares", no "$65".
+- Si el cliente está nervioso o alterado, primero tranquiliza: "No se apure, que eso lo resolvemos ahora mismo."
+- Nunca leas listas ni menús. Conversa.
+
+FLUJO DE LA LLAMADA (en este orden, natural, sin sonar a formulario)
+1. Contesta corto: "Cerrajería Express, buenas. ¿En qué le puedo ayudar?"
+2. Identifica el problema: carro cerrado, puerta de la casa, cambio de cerradura, caja fuerte, llaves.
+3. Si es CARRO: pregunta marca y modelo. En cuanto la tengas, llama a consultar_precio y dile el precio con sus condiciones. No sigas al paso 4 sin haber cotizado.
+4. Pregunta el pueblo y la dirección exacta (urbanización, calle, número). Si hay personas, niños o mascotas encerradas, márcalo como emergencia y agiliza.
+5. Pide nombre y número de teléfono.
+6. Confirma todo en una sola frase y llama a guardar_servicio.
+7. Cierra: "Listo, [nombre]. El técnico le está llamando en unos minutitos. Estamos pa' servirle."
+
+PRECIOS DE APERTURA DE CARRO (la regla es POR MARCA — nunca inventes)
+- SIEMPRE cotiza llamando a consultar_precio con la marca (y modelo si lo dio). Usa la respuesta_sugerida como base de lo que dices.
+- Económicas (Toyota, Honda, Ford, Kia, Nissan, Hyundai, Chevrolet y demás asiáticas/americanas): sesenta y cinco dólares, precio firme, sin importar año ni modelo.
+- Europeas (BMW, Mercedes-Benz, Audi, Volkswagen, Volvo, Mini, Fiat, Alfa Romeo, Jaguar, Land Rover): ochenta y cinco dólares si se puede abrir con varilla; desde ciento cincuenta si hay que trabajar la cerradura. El precio final depende del área; lo confirma nuestro especialista.
+- Exóticas (Ferrari, Maserati, Porsche) y el Corvette: desde doscientos cincuenta dólares. Trabajo bien especializado que hace nuestro especialista; él confirma según el área.
+- Si el carro es europeo o exótico, dilo con orgullo: "Ese trabajo lo hace nuestro especialista, de los pocos en la isla que lo brega."
+
+MANEJO DE OBJECIONES (con empatía, sin pelear, máximo 2 oraciones; después de responder, retoma el cierre)
+- "Está caro" → "Entiendo, pero mire: le llega un técnico certificado en minutos y le abre sin dañarle el carro. En el dealer eso le sale en más del doble y sin la grúa."
+- "Fulano me cobra menos" → "Puede ser, pero lo barato con cerraduras sale caro. Nosotros respondemos: sin daños y con garantía."
+- "Déjeme pensarlo" / "llamo ahorita" → "Claro, sin compromiso. Ahora, le adelanto que el técnico anda cerca; si me confirma ya, en veinte minutitos le resolvemos."
+- "¿Cuánto se tardan?" → "Entre quince y treinta minutos según el pueblo. Si es emergencia, vamos con prioridad."
+- "¿Me van a dañar el carro / la puerta?" → "No, para nada. Se trabaja con herramienta profesional y se abre sin daño."
+- "¿Ese precio es final?" → Económicas: "Firme: sesenta y cinco, sin sorpresas." Europeas/exóticas: "Es desde ese precio; el especialista le confirma el total antes de empezar, sin sorpresas."
+- "¿Cómo pago?" → "Efectivo, ATH Móvil o tarjeta, al terminar el servicio."
+- "¿Llegan a mi pueblo?" → "Cubrimos toda la isla. ¿En qué pueblo está usted?"
+- "¿Son de confianza?" → "Claro. Técnicos identificados, con años en esto, y usted no paga hasta que el trabajo esté hecho."
+- Si el cliente duda dos veces seguidas, no presiones más: ofrece guardar la solicitud igual — "Le dejo el servicio anotado sin compromiso y el técnico le llama pa' confirmar, ¿le parece?" — y guarda con nota "cliente por confirmar".
+
+REGLAS DURAS
+- Nunca inventes precios, descuentos ni rebajas. No negocies por debajo de la tarifa.
+- Nunca digas que un precio "desde" es el precio final.
+- El técnico verifica en sitio que el carro o la propiedad sea del cliente (licencia, registración). Si preguntan, dilo con naturalidad; no acuses a nadie.
+- Solo cerrajería. Si piden otra cosa: "Aquí solo bregamos con cerrajería, ¿le puedo ayudar con eso?"
+- Da estimados de tiempo, no promesas exactas.
+- En emergencia con niños o personas encerradas: no discutas precio primero — resuelve, marca es_emergencia y agiliza el cierre.
+- Si el cliente habla inglés, cambia a inglés con naturalidad y mantén las mismas reglas.
 
 TIPOS DE SERVICIO: apertura_puerta | cambio_cilindro | duplicado_llave | apertura_caja_fuerte | instalacion_cerradura | emergencia_vehiculo | otro
 `;
+
+// Fallback si la BD no responde al armar la sesión (mismos valores del seed)
+const CATALOGO_FALLBACK = [
+  { id: 'apertura_puerta',       nombre: 'Apertura de puerta',       precio_base: 65,  precio_emergencia: 95  },
+  { id: 'cambio_cilindro',       nombre: 'Cambio de cilindro',       precio_base: 80,  precio_emergencia: 120 },
+  { id: 'duplicado_llave',       nombre: 'Duplicado de llave',       precio_base: 25,  precio_emergencia: 40  },
+  { id: 'apertura_caja_fuerte',  nombre: 'Apertura de caja fuerte',  precio_base: 150, precio_emergencia: 220 },
+  { id: 'instalacion_cerradura', nombre: 'Instalación de cerradura', precio_base: 90,  precio_emergencia: 135 },
+];
+
+function seccionCatalogo(filas) {
+  const lineas = filas
+    .filter(f => f.id !== 'emergencia_vehiculo' && f.id !== 'otro' && f.activo !== false)
+    .map(f => `- ${f.nombre}: $${Number(f.precio_base)} (emergencia $${Number(f.precio_emergencia)})`);
+  return `
+OTROS SERVICIOS (hogar/negocio — confirma con consultar_precio antes de decirlos)
+${lineas.join('\n')}
+- Cualquier otro servicio: "El técnico le cotiza en sitio, sin compromiso."
+`;
+}
+
+async function buildSystemInstruction() {
+  let filas = CATALOGO_FALLBACK;
+  try {
+    // Require diferido para no crear ciclo al arrancar (catalogo → db)
+    const { listarCatalogo } = require('./catalogo');
+    const desdeDB = await listarCatalogo();
+    if (Array.isArray(desdeDB) && desdeDB.length > 0) filas = desdeDB;
+  } catch (err) {
+    console.warn('⚠️  No pude leer el catálogo de la BD para el prompt, uso fallback:', err.message);
+  }
+  return (PROMPT_BASE + seccionCatalogo(filas)).trim();
+}
 
 // ── Definición de herramientas (Function Calling) ───────────────────────────
 const TOOLS = [
   {
     functionDeclarations: [
       {
+        name: 'consultar_precio',
+        description: 'Consulta el precio oficial de un servicio para decírselo al cliente. Para apertura de vehículo pasa la marca (y modelo si lo mencionó). Llámala SIEMPRE antes de decir un precio; nunca cotices de memoria.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            tipo_servicio: {
+              type: 'STRING',
+              description: 'Tipo de servicio a cotizar',
+              enum: [
+                'apertura_puerta',
+                'cambio_cilindro',
+                'duplicado_llave',
+                'apertura_caja_fuerte',
+                'instalacion_cerradura',
+                'emergencia_vehiculo',
+                'otro'
+              ]
+            },
+            marca: {
+              type: 'STRING',
+              description: 'Marca del vehículo tal como la dijo el cliente (ej. "Toyota", "BMW", "mercedes"). Solo para emergencia_vehiculo.'
+            },
+            modelo: {
+              type: 'STRING',
+              description: 'Modelo del vehículo si lo mencionó (ej. "Corolla", "Corvette"). Opcional.'
+            },
+            es_emergencia: {
+              type: 'BOOLEAN',
+              description: 'true si es emergencia (aplica tarifa de emergencia en servicios de hogar)'
+            }
+          },
+          required: ['tipo_servicio']
+        }
+      },
+      {
         name: 'guardar_servicio',
-        description: 'Guarda la solicitud de servicio de cerrajería con los datos del cliente recabados durante la llamada. Llama esta función solo cuando tengas nombre, teléfono, ubicación y tipo de servicio.',
+        description: 'Guarda la solicitud de servicio con los datos del cliente. Llámala solo cuando tengas nombre, teléfono, ubicación y tipo de servicio. Para vehículos incluye marca y modelo.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -55,14 +157,14 @@ const TOOLS = [
             },
             ubicacion: {
               type: 'STRING',
-              description: 'Dirección completa donde se requiere el servicio: calle, número, piso/depto, ciudad'
+              description: 'Dirección completa: urbanización/calle, número y pueblo'
             },
             tipo_servicio: {
               type: 'STRING',
-              description: 'Tipo de servicio requerido. Valores posibles: apertura_puerta, cambio_cilindro, duplicado_llave, apertura_caja_fuerte, instalacion_cerradura, emergencia_vehiculo, otro',
+              description: 'Tipo de servicio requerido',
               enum: [
                 'apertura_puerta',
-                'cambio_cilindro', 
+                'cambio_cilindro',
                 'duplicado_llave',
                 'apertura_caja_fuerte',
                 'instalacion_cerradura',
@@ -72,11 +174,19 @@ const TOOLS = [
             },
             es_emergencia: {
               type: 'BOOLEAN',
-              description: 'true si hay niños, mascotas, personas mayores encerradas o situación de peligro inmediato'
+              description: 'true si hay niños, mascotas o personas encerradas, o peligro inmediato'
+            },
+            marca_vehiculo: {
+              type: 'STRING',
+              description: 'Marca del vehículo (solo para emergencia_vehiculo)'
+            },
+            modelo_vehiculo: {
+              type: 'STRING',
+              description: 'Modelo del vehículo si lo dio (opcional)'
             },
             notas_adicionales: {
               type: 'STRING',
-              description: 'Información adicional relevante que el cliente haya mencionado (opcional)'
+              description: 'Información adicional relevante, ej. "cliente por confirmar" si quedó dudoso (opcional)'
             }
           },
           required: ['nombre', 'telefono', 'ubicacion', 'tipo_servicio', 'es_emergencia']
@@ -87,8 +197,8 @@ const TOOLS = [
 ];
 
 // ── Configuración de sesión (v1beta confirmado) ───────────────────────────────
-function buildSetupMessage() {
-  // v1beta: clave raiz 'setup', configuración de audio dentro de generationConfig
+async function buildSetupMessage() {
+  const systemInstruction = await buildSystemInstruction();
   return {
     setup: {
       model: `models/${MODEL}`,
@@ -105,7 +215,7 @@ function buildSetupMessage() {
       systemInstruction: {
         parts: [
           {
-            text: SYSTEM_INSTRUCTION.trim()
+            text: systemInstruction
           }
         ]
       },
@@ -125,6 +235,7 @@ function buildGeminiUrl() {
 
 module.exports = {
   buildSetupMessage,
+  buildSystemInstruction,
   buildGeminiUrl,
   MODEL,
   VOICE

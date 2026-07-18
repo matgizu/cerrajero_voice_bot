@@ -20,7 +20,7 @@ const cors = require('cors');
 
 const { buildSetupMessage, buildGeminiUrl } = require('./gemini');
 const { initDB } = require('./db');
-const { manejarFunctionCall, listarServicios, guardarServicio, actualizarEstado, reasignarCerrajero } = require('./services');
+const { manejarFunctionCall, listarServicios, guardarServicio, consultarPrecio, actualizarEstado, reasignarCerrajero } = require('./services');
 const { listarCerrajeros, toggleDisponibilidad } = require('./cerrajeros');
 const { listarCatalogo, crearServicioCatalogo, actualizarServicioCatalogo, eliminarServicioCatalogo } = require('./catalogo');
 const { getYears, getMakes, getModels, listarPreciosVehiculos, upsertPrecioVehiculo, eliminarPrecioVehiculo } = require('./precios-vehiculos');
@@ -154,6 +154,15 @@ app.get('/admin', (_req, res) => {
   res.sendFile(path.join(__dirname, '../client/admin.html'));
 });
 
+// ── Config de voz para el browser ─────────────────────────────────────────────
+// El cliente pregunta qué motor usar: ElevenLabs si está configurado; si no,
+// Gemini vía el proxy /ws (ideal para pruebas locales).
+app.get('/api/voice-config', (_req, res) => {
+  const elevenlabs = Boolean(process.env.ELEVENLABS_AGENT_ID && process.env.ELEVENLABS_API_KEY);
+  const gemini     = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'TU_API_KEY_AQUI');
+  res.json({ engine: elevenlabs ? 'elevenlabs' : gemini ? 'gemini' : 'none' });
+});
+
 // ── ElevenLabs — Signed URL para el browser ────────────────────────────────────
 app.get('/api/elevenlabs/signed-url', async (_req, res) => {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
@@ -190,12 +199,19 @@ app.post('/twilio/incoming', (req, res) => {
 </Response>`);
 });
 
-// ── ElevenLabs — Webhook de Tool Calls (guardar_servicio) ────────────────────
+// ── ElevenLabs — Webhooks de Tool Calls ──────────────────────────────────────
 app.post('/api/tools/guardar_servicio', async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook guardar_servicio:', JSON.stringify(params));
   const resultado = await guardarServicio(params);
   res.json({ result: resultado.mensaje || 'Servicio procesado' });
+});
+
+app.post('/api/tools/consultar_precio', async (req, res) => {
+  const params  = req.body?.parameters || req.body || {};
+  console.log('\n📥 Tool webhook consultar_precio:', JSON.stringify(params));
+  const resultado = await consultarPrecio(params);
+  res.json({ result: resultado.respuesta_sugerida || resultado.mensaje || 'Sin precio disponible' });
 });
 
 app.get('/api/health', (_req, res) => {
@@ -271,11 +287,12 @@ wss.on('connection', (clientWs, req) => {
     console.log(`   [${clientId}] Conectando a Gemini API...`);
     geminiWs = new WebSocket(geminiUrl);
 
-    geminiWs.on('open', () => {
+    geminiWs.on('open', async () => {
       console.log(`   [${clientId}] ✅ Conectado a Gemini. Enviando setup...`);
 
       // Enviar setup inicial con system instruction y configuración de audio
-      const setupMsg = buildSetupMessage();
+      // (async: inyecta los precios del catálogo desde la BD en el prompt)
+      const setupMsg = await buildSetupMessage();
       geminiWs.send(JSON.stringify(setupMsg));
       setupSent = true;
     });

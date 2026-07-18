@@ -13,7 +13,8 @@
 
 // ── Estado global ─────────────────────────────────────────────────────────────
 const state = {
-  ws:              null,   // WebSocket a ElevenLabs
+  ws:              null,   // WebSocket al motor de voz
+  engine:          'elevenlabs', // 'elevenlabs' | 'gemini' (lo decide /api/voice-config)
   audioContext:    null,   // Para reproducción
   captureContext:  null,   // Para captura de mic
   micStream:       null,
@@ -21,7 +22,7 @@ const state = {
   isSessionActive: false,
   isAgentSpeaking: false,
   nextPlayTime:    0,
-  outputSampleRate: 16000, // Se actualiza con el metadata de ElevenLabs
+  outputSampleRate: 16000, // ElevenLabs: metadata · Gemini: 24000
 };
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
@@ -89,6 +90,116 @@ async function getSignedUrl() {
   const data = await res.json();
   if (!data.signedUrl) throw new Error(data.error || 'No se pudo obtener signed URL');
   return data.signedUrl;
+}
+
+// ── Motor de voz configurado en el servidor ──────────────────────────────────
+async function getVoiceEngine() {
+  try {
+    const res  = await fetch('/api/voice-config');
+    const data = await res.json();
+    return data.engine || 'elevenlabs';
+  } catch (_) {
+    return 'elevenlabs';
+  }
+}
+
+// ── Gemini — Conexión al proxy /ws del servidor ──────────────────────────────
+function conectarGemini() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    console.log('✅ WS Gemini abierto — iniciando sesión');
+    ws.send(JSON.stringify({ type: 'start_session' }));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      handleGeminiMessage(JSON.parse(event.data));
+    } catch (err) {
+      console.error('Error procesando msg Gemini:', err);
+    }
+  };
+
+  ws.onerror = (err) => {
+    console.error('❌ Gemini WS error:', err);
+    showNotification('Error de conexión con el agente', 'error');
+    setUIState('error');
+  };
+
+  ws.onclose = () => {
+    console.log('🔌 Gemini WS cerrado');
+    if (state.isSessionActive) {
+      endSession();
+      showNotification('Sesión terminada', 'warning');
+    }
+  };
+
+  return ws;
+}
+
+// ── Gemini — Manejar mensajes del proxy ───────────────────────────────────────
+function handleGeminiMessage(msg) {
+  switch (msg.type) {
+
+    case 'session_ready': {
+      state.outputSampleRate = 24000; // Gemini responde PCM16 @ 24kHz
+      state.isSessionActive  = true;
+      setUIState('listening');
+      startCallTimer();
+      showNotification('Conectado con el Asistente de Cerrajería', 'success');
+      break;
+    }
+
+    case 'audio_chunk': {
+      if (msg.data) {
+        const m = /rate=(\d+)/.exec(msg.mimeType || '');
+        if (m) state.outputSampleRate = parseInt(m[1], 10);
+        reproducirAudio(msg.data);
+        if (!state.isAgentSpeaking) {
+          state.isAgentSpeaking = true;
+          setUIState('speaking');
+          muteMicrophone(true);
+        }
+      }
+      break;
+    }
+
+    case 'input_transcription':
+      if (msg.text?.trim()) addTranscriptLine('user', msg.text);
+      break;
+
+    case 'output_transcription':
+      if (msg.text?.trim()) addTranscriptLine('agent', msg.text);
+      break;
+
+    case 'interrupted':
+      state.isAgentSpeaking = false;
+      state.nextPlayTime    = 0;
+      muteMicrophone(false);
+      setUIState('listening');
+      break;
+
+    case 'service_saved':
+      // La tarjeta llega también por SSE (servicio_nuevo); aquí solo notificamos
+      break;
+
+    case 'turn_complete':
+    case 'cost_update':
+      break;
+
+    case 'error':
+      showNotification(msg.message || 'Error del agente', 'error');
+      setUIState('error');
+      break;
+
+    case 'session_ended':
+      endSession();
+      break;
+
+    default:
+      if (msg.type) console.log('Gemini msg:', msg.type);
+  }
 }
 
 // ── ElevenLabs — Conexión WebSocket ──────────────────────────────────────────
@@ -244,7 +355,11 @@ async function startMicrophone() {
       if (e.data.type === 'audio_chunk' && state.ws?.readyState === WebSocket.OPEN) {
         if (!state.isAgentSpeaking && state.isSessionActive) {
           const b64 = arrayBufferToBase64(e.data.pcm16.buffer);
-          state.ws.send(JSON.stringify({ user_audio_chunk: b64 }));
+          if (state.engine === 'gemini') {
+            state.ws.send(JSON.stringify({ type: 'audio_chunk', data: b64 }));
+          } else {
+            state.ws.send(JSON.stringify({ user_audio_chunk: b64 }));
+          }
         }
       }
     };
@@ -337,8 +452,19 @@ function conectarSSE() {
 async function startSession() {
   setUIState('connecting');
   try {
-    const signedUrl = await getSignedUrl();
-    state.ws = conectarElevenLabs(signedUrl);
+    state.engine = await getVoiceEngine();
+    console.log(`🎛️ Motor de voz: ${state.engine}`);
+
+    if (state.engine === 'none') {
+      throw new Error('Sin motor de voz: configura GEMINI_API_KEY o ElevenLabs en el .env');
+    }
+
+    if (state.engine === 'gemini') {
+      state.ws = conectarGemini();
+    } else {
+      const signedUrl = await getSignedUrl();
+      state.ws = conectarElevenLabs(signedUrl);
+    }
 
     const micOk = await startMicrophone();
     if (!micOk) {
@@ -361,7 +487,12 @@ function endSession() {
   stopMicrophone();
   stopCallTimer();
 
-  if (state.ws?.readyState === WebSocket.OPEN) state.ws.close();
+  if (state.ws?.readyState === WebSocket.OPEN) {
+    if (state.engine === 'gemini') {
+      try { state.ws.send(JSON.stringify({ type: 'end_session' })); } catch (_) {}
+    }
+    state.ws.close();
+  }
   state.ws = null;
 
   state.audioContext?.close();

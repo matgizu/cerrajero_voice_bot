@@ -6,9 +6,12 @@ if (!process.env.DATABASE_URL) {
   throw new Error('❌ DATABASE_URL no está definida. Agrega el plugin PostgreSQL en Railway o configura .env');
 }
 
+// SSL solo para BD remota (Railway); el Postgres local no lo soporta
+const esLocal = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: esLocal ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30_000,
 });
@@ -16,11 +19,14 @@ const pool = new Pool({
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
 const CERRAJEROS_SEED = [
-  { id: 'CRR-001', nombre: 'Carlos Rodríguez', telefono: '+17871110001', zonas: ['Bayamón','Guaynabo','Toa Baja','Toa Alta'],        disponible: true, callmebot_apikey: '' },
-  { id: 'CRR-002', nombre: 'Miguel Torres',    telefono: '+17872220002', zonas: ['San Juan','Carolina','Canóvanas','Loíza'],          disponible: true, callmebot_apikey: '' },
-  { id: 'CRR-003', nombre: 'Juan Pérez',       telefono: '+17873330003', zonas: ['Caguas','Trujillo Alto','Gurabo','San Lorenzo'],    disponible: true, callmebot_apikey: '' },
-  { id: 'CRR-004', nombre: 'Roberto Martínez', telefono: '+17874440004', zonas: ['Ponce','Juana Díaz','Peñuelas','Guayanilla'],      disponible: true, callmebot_apikey: '' },
-  { id: 'CRR-005', nombre: 'Luis García',      telefono: '+17875550005', zonas: ['Arecibo','Manatí','Barceloneta','Dorado','Vega Alta','Vega Baja'], disponible: true, callmebot_apikey: '' },
+  { id: 'CRR-001', nombre: 'Carlos Rodríguez', telefono: '+17871110001', zonas: ['Bayamón','Guaynabo','Toa Baja','Toa Alta'],        disponible: true, callmebot_apikey: '', es_especialista: false },
+  { id: 'CRR-002', nombre: 'Miguel Torres',    telefono: '+17872220002', zonas: ['San Juan','Carolina','Canóvanas','Loíza'],          disponible: true, callmebot_apikey: '', es_especialista: false },
+  { id: 'CRR-003', nombre: 'Juan Pérez',       telefono: '+17873330003', zonas: ['Caguas','Trujillo Alto','Gurabo','San Lorenzo'],    disponible: true, callmebot_apikey: '', es_especialista: false },
+  { id: 'CRR-004', nombre: 'Roberto Martínez', telefono: '+17874440004', zonas: ['Ponce','Juana Díaz','Peñuelas','Guayanilla'],      disponible: true, callmebot_apikey: '', es_especialista: false },
+  { id: 'CRR-005', nombre: 'Luis García',      telefono: '+17875550005', zonas: ['Arecibo','Manatí','Barceloneta','Dorado','Vega Alta','Vega Baja'], disponible: true, callmebot_apikey: '', es_especialista: false },
+  // Especialista en apertura de vehículos europeos/exóticos (cubre toda la isla).
+  // Los leads premium se le asignan directo a él.
+  { id: 'CRR-006', nombre: 'Mateo Giraldo',    telefono: '+17876660006', zonas: [],                                                  disponible: true, callmebot_apikey: '', es_especialista: true },
 ];
 
 const CATALOGO_SEED = [
@@ -44,6 +50,7 @@ async function initDB() {
       zonas            JSONB   NOT NULL DEFAULT '[]',
       disponible       BOOLEAN NOT NULL DEFAULT true,
       callmebot_apikey TEXT             DEFAULT '',
+      es_especialista  BOOLEAN NOT NULL DEFAULT false,
       ultimo_servicio  TIMESTAMPTZ
     );
 
@@ -98,6 +105,11 @@ async function initDB() {
     ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_copia_llave   NUMERIC(10,2) NOT NULL DEFAULT 0;
     ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS precio_llave_perdida NUMERIC(10,2) NOT NULL DEFAULT 0;
     ALTER TABLE precios_vehiculos ADD COLUMN IF NOT EXISTS precio_apertura NUMERIC(10,2) NOT NULL DEFAULT 0;
+    ALTER TABLE cerrajeros ADD COLUMN IF NOT EXISTS es_especialista BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS marca_vehiculo  TEXT DEFAULT '';
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS modelo_vehiculo TEXT DEFAULT '';
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS es_premium      BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS precio_cotizado TEXT DEFAULT '';
   `);
 
   // Seed cerrajeros si la tabla está vacía
@@ -105,9 +117,9 @@ async function initDB() {
   if (cCount === '0') {
     for (const c of CERRAJEROS_SEED) {
       await pool.query(
-        `INSERT INTO cerrajeros (id, nombre, telefono, zonas, disponible, callmebot_apikey)
-         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-        [c.id, c.nombre, c.telefono, JSON.stringify(c.zonas), c.disponible, c.callmebot_apikey]
+        `INSERT INTO cerrajeros (id, nombre, telefono, zonas, disponible, callmebot_apikey, es_especialista)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+        [c.id, c.nombre, c.telefono, JSON.stringify(c.zonas), c.disponible, c.callmebot_apikey, c.es_especialista === true]
       );
     }
     console.log('  ✅ Cerrajeros iniciales insertados');
@@ -125,6 +137,10 @@ async function initDB() {
     }
     console.log('  ✅ Catálogo inicial insertado');
   }
+
+  // Seed de precios de apertura por marca (require diferido: ese módulo importa este)
+  const { seedPreciosAperturaMarca } = require('./precios-apertura-marca');
+  await seedPreciosAperturaMarca();
 
   console.log('  ✅ Base de datos lista\n');
 }

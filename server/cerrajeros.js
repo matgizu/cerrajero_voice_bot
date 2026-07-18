@@ -27,6 +27,7 @@ function rowToCerrajero(row) {
     zonas:            row.zonas,
     disponible:       row.disponible,
     callmebot_apikey: row.callmebot_apikey || '',
+    es_especialista:  row.es_especialista === true,
     ultimo_servicio:  row.ultimo_servicio ? row.ultimo_servicio.toISOString() : null,
   };
 }
@@ -62,6 +63,20 @@ async function asignarCerrajero(ubicacion) {
   return candidatos[0] || null;
 }
 
+/**
+ * Asigna el especialista en vehículos europeos/exóticos (leads premium).
+ * El especialista cubre toda la isla; se prefiere disponible, pero un lead
+ * premium nunca se pierde: si no hay especialista, cae al ruteo por zona.
+ */
+async function asignarEspecialista() {
+  const { rows } = await pool.query(
+    `SELECT * FROM cerrajeros WHERE es_especialista = true
+     ORDER BY disponible DESC, ultimo_servicio ASC NULLS FIRST
+     LIMIT 1`
+  );
+  return rows[0] ? rowToCerrajero(rows[0]) : null;
+}
+
 async function marcarUltimoServicio(id) {
   await pool.query(
     'UPDATE cerrajeros SET ultimo_servicio = NOW() WHERE id = $1',
@@ -92,6 +107,7 @@ async function toggleDisponibilidad(id) {
 module.exports = {
   detectarMunicipio,
   asignarCerrajero,
+  asignarEspecialista,
   marcarUltimoServicio,
   listarCerrajeros,
   getCerrajero,
