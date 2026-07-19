@@ -174,7 +174,11 @@ function cotizarApertura(marca, modelo = '') {
     };
   }
 
-  const categoria = categoriaDeMarca(marca);
+  // Categoría a partir de la marca canónica ya detectada (no del campo crudo,
+  // que puede venir con el modelo pegado: "BMW X5")
+  const categoria = canon && MARCAS_EXOTICA.has(canon) ? 'exotica'
+    : canon && MARCAS_EUROPEA.has(canon) ? 'europea'
+    : 'economica';
 
   if (categoria === 'exotica') {
     const { precio_desde } = PRECIOS.exotica;
