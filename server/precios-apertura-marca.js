@@ -34,15 +34,55 @@ const MARCAS_ECONOMICA = [
 ];
 
 // Precios de referencia por categoría (fuente única de verdad para la cotización).
+// Europeos: $85 varilla · $150 FIJO por cerradura SOLO área metro (fuera: confirma VIP).
+// No europeos: por tamaño — estándar $65; grande (van/pickup/SUV grande) PENDIENTE
+// de que el cliente defina el monto (null = el cerrajero confirma al llamar).
 const PRECIOS = {
   economica: { precio_apertura: 65 },
-  europea:   { precio_varilla: 85, precio_desde: 150 },
+  grande:    { precio_apertura: null },
+  europea:   { precio_varilla: 85, precio_cerradura_metro: 150 },
   exotica:   { precio_desde: 250 },
   corvette:  { precio_desde: 250 },
 };
 
 const _sinAcentos = (s) =>
   String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+// ── Clasificación por tamaño (vehículos NO europeos) ──────────────────────────
+
+const MODELOS_GRANDES = {
+  van: [
+    'transit', 'sprinter', 'promaster', 'pro master', 'express', 'savana',
+    'nv200', 'nv350', 'nv1500', 'nv2500', 'nv3500', 'e-150', 'e150', 'e-250',
+    'e250', 'e-350', 'e350', 'metris', 'van',
+  ],
+  pickup: [
+    'f-150', 'f150', 'f-250', 'f250', 'f-350', 'f350', 'f-450', 'f450',
+    'silverado', 'sierra', 'ram', 'tundra', 'tacoma', 'frontier', 'ranger',
+    'colorado', 'ridgeline', 'titan', 'gladiator', 'pickup', 'pick up', 'pick-up',
+  ],
+  suv_grande: [
+    'suburban', 'tahoe', 'yukon', 'expedition', 'escalade', 'navigator',
+    'sequoia', 'armada', 'land cruiser',
+  ],
+};
+
+/**
+ * Clasifica el tamaño por el modelo dicho por el cliente.
+ * @returns {'van'|'pickup'|'suv_grande'|'estandar'}
+ */
+function clasificarTamano(modelo) {
+  const limpio = _sinAcentos(modelo || '');
+  if (!limpio) return 'estandar';
+  for (const [tipo, keywords] of Object.entries(MODELOS_GRANDES)) {
+    for (const kw of keywords) {
+      if (new RegExp(`(^|[^a-z0-9])${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(limpio)) {
+        return tipo;
+      }
+    }
+  }
+  return 'estandar';
+}
 
 // ── Normalización y clasificación ─────────────────────────────────────────────
 
@@ -80,12 +120,22 @@ function categoriaDeMarca(marca) {
 
 // ── Cotización de apertura de vehículo (usada por el bot y el ruteo) ───────────
 
+const NOMBRE_TAMANO = { van: 'van', pickup: 'pickup', suv_grande: 'guagua grande' };
+
 /**
- * Cotiza la apertura de un vehículo por marca (y modelo, para el caso Corvette).
+ * Cotiza la apertura de un vehículo por marca, modelo y tamaño.
  * Devuelve un objeto con el texto listo para que el agente lo diga por voz.
  *
+ * Reglas (cliente, 2026-07-19):
+ *  - Europeos: $85 con varilla · $150 FIJO por cerradura SOLO área metro
+ *    (fuera del área metro lo confirma el cerrajero VIP). Cierre: "le llama
+ *    uno de nuestros cerrajeros VIP en unos minutos".
+ *  - No europeos: por tamaño. Estándar $65 firme; van/pickup/SUV grande según
+ *    tarifa de grandes (aún sin definir → el cerrajero confirma al llamar).
+ *  - Exóticas y Corvette: desde $250 (VIP).
+ *
  * @returns {{
- *   categoria: string, es_premium: boolean, precio_min: number,
+ *   categoria: string, tamano: string, es_premium: boolean, precio_min: number|null,
  *   precio_varilla: number|null, precio_desde: number|null,
  *   marca: string|null, texto: string
  * }}
@@ -93,15 +143,19 @@ function categoriaDeMarca(marca) {
 function cotizarApertura(marca, modelo = '') {
   const canon      = normalizarMarca(marca);
   const nombre     = canon || 'vehículo';
+  // Ram solo fabrica pickups/vans: la marca sola ya define el tamaño
+  const tamano     = clasificarTamano(modelo) !== 'estandar'
+    ? clasificarTamano(modelo)
+    : (canon === 'Ram' ? 'pickup' : 'estandar');
   const esCorvette = canon === 'Chevrolet' && /corvette/.test(_sinAcentos(modelo));
 
   if (esCorvette) {
     return {
-      categoria: 'especial', es_premium: true,
+      categoria: 'especial', tamano, es_premium: true,
       precio_min: PRECIOS.corvette.precio_desde, precio_varilla: null,
       precio_desde: PRECIOS.corvette.precio_desde, marca: 'Chevrolet Corvette',
-      texto: `La apertura de un Corvette arranca desde $${PRECIOS.corvette.precio_desde}. ` +
-             `Es un trabajo especializado; un especialista lo confirma según su zona.`,
+      texto: `La apertura de un Corvette arranca desde $${PRECIOS.corvette.precio_desde}; es un trabajo especializado. ` +
+             `En unos minutos le llama uno de nuestros cerrajeros VIP para confirmarle.`,
     };
   }
 
@@ -110,27 +164,45 @@ function cotizarApertura(marca, modelo = '') {
   if (categoria === 'exotica') {
     const { precio_desde } = PRECIOS.exotica;
     return {
-      categoria, es_premium: true, precio_min: precio_desde,
+      categoria, tamano, es_premium: true, precio_min: precio_desde,
       precio_varilla: null, precio_desde, marca: canon,
-      texto: `La apertura de su ${nombre} arranca desde $${precio_desde}. ` +
-             `Es un trabajo muy especializado; un especialista lo confirma según su zona.`,
+      texto: `La apertura de su ${nombre} arranca desde $${precio_desde}; es un trabajo muy especializado. ` +
+             `En unos minutos le llama uno de nuestros cerrajeros VIP para confirmarle.`,
     };
   }
 
   if (categoria === 'europea') {
-    const { precio_varilla, precio_desde } = PRECIOS.europea;
+    const { precio_varilla, precio_cerradura_metro } = PRECIOS.europea;
     return {
-      categoria, es_premium: true, precio_min: precio_varilla,
-      precio_varilla, precio_desde, marca: canon,
-      texto: `Para su ${nombre}: $${precio_varilla} si se puede abrir con varilla, ` +
-             `y desde $${precio_desde} si hay que trabajar la cerradura. ` +
-             `Es un servicio especializado y el precio final depende de su zona; un especialista lo confirma.`,
+      categoria, tamano, es_premium: true, precio_min: precio_varilla,
+      precio_varilla, precio_desde: precio_cerradura_metro, marca: canon,
+      texto: `Para su ${nombre}: $${precio_varilla} si se abre con varilla, o $${precio_cerradura_metro} fijo trabajando la cerradura en el área metro ` +
+             `(fuera del área metro se lo confirma el cerrajero). En unos minutos le llama uno de nuestros cerrajeros VIP.`,
+    };
+  }
+
+  // No europeo: por tamaño
+  if (tamano !== 'estandar') {
+    const precioGrande = PRECIOS.grande.precio_apertura;
+    const tipoTexto    = NOMBRE_TAMANO[tamano] || 'vehículo grande';
+    if (precioGrande == null) {
+      return {
+        categoria: 'grande', tamano, es_premium: false, precio_min: null,
+        precio_varilla: null, precio_desde: null, marca: canon,
+        texto: `Para una ${tipoTexto} como la suya el precio se lo confirma nuestro cerrajero al llamarle en unos minutos. ` +
+               `Déjeme tomarle los datos para coordinarle.`,
+      };
+    }
+    return {
+      categoria: 'grande', tamano, es_premium: false, precio_min: precioGrande,
+      precio_varilla: null, precio_desde: null, marca: canon,
+      texto: `Para una ${tipoTexto} como la suya la apertura son $${precioGrande}.`,
     };
   }
 
   const { precio_apertura } = PRECIOS.economica;
   return {
-    categoria: 'economica', es_premium: false, precio_min: precio_apertura,
+    categoria: 'economica', tamano, es_premium: false, precio_min: precio_apertura,
     precio_varilla: null, precio_desde: null, marca: canon,
     texto: `La apertura de su ${nombre} son $${precio_apertura}.`,
   };
@@ -214,6 +286,7 @@ module.exports = {
   // clasificación / cotización
   normalizarMarca,
   categoriaDeMarca,
+  clasificarTamano,
   cotizarApertura,
   esPremium,
   MARCAS_EXOTICA,

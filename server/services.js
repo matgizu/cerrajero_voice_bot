@@ -56,9 +56,11 @@ async function guardarServicio(datos) {
   const precioTexto  = cotizacion
     ? (cotizacion.precio_desde
         ? (cotizacion.precio_varilla
-            ? `$${cotizacion.precio_varilla} varilla · desde $${cotizacion.precio_desde} cerradura`
+            ? `$${cotizacion.precio_varilla} varilla · $${cotizacion.precio_desde} cerradura (metro)`
             : `desde $${cotizacion.precio_desde}`)
-        : `$${cotizacion.precio_min}`)
+        : (cotizacion.precio_min != null
+            ? `$${cotizacion.precio_min}`
+            : `por confirmar (${cotizacion.tamano || 'vehículo grande'})`))
     : '';
 
   const cerrajero = premium
@@ -177,6 +179,7 @@ async function consultarPrecio({ tipo_servicio, marca, modelo, es_emergencia } =
       exito: true,
       tipo_servicio: 'emergencia_vehiculo',
       categoria: q.categoria,
+      tamano: q.tamano,
       es_premium: q.es_premium,
       precio_varilla: q.precio_varilla,
       precio_desde: q.precio_desde,
