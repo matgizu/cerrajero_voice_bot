@@ -35,11 +35,13 @@ const MARCAS_ECONOMICA = [
 
 // Precios de referencia por categoría (fuente única de verdad para la cotización).
 // Europeos: $85 varilla · $150 FIJO por cerradura SOLO área metro (fuera: confirma VIP).
-// No europeos: por tamaño — estándar $65; grande (van/pickup/SUV grande) PENDIENTE
-// de que el cliente defina el monto (null = el cerrajero confirma al llamar).
+// No europeos: por tamaño (cliente 2026-07-18) — estándar $65 · grande
+// (van/pickup/SUV grande: F-150, Ram, Suburban, Escalade, Express, Silverado,
+// Transit...) $75 · camiones comerciales $125.
 const PRECIOS = {
   economica: { precio_apertura: 65 },
-  grande:    { precio_apertura: null },
+  grande:    { precio_apertura: 75 },
+  camion:    { precio_apertura: 125 },
   europea:   { precio_varilla: 85, precio_cerradura_metro: 150 },
   exotica:   { precio_desde: 250 },
   corvette:  { precio_desde: 250 },
@@ -51,6 +53,11 @@ const _sinAcentos = (s) =>
 // ── Clasificación por tamaño (vehículos NO europeos) ──────────────────────────
 
 const MODELOS_GRANDES = {
+  // Camiones comerciales primero: tienen prioridad sobre van/pickup
+  camion: [
+    'camion', 'freightliner', 'kenworth', 'peterbilt', 'mack', 'hino',
+    'isuzu npr', 'npr', 'box truck', 'diez ruedas', '18 wheeler',
+  ],
   van: [
     'transit', 'sprinter', 'promaster', 'pro master', 'express', 'savana',
     'nv200', 'nv350', 'nv1500', 'nv2500', 'nv3500', 'e-150', 'e150', 'e-250',
@@ -120,7 +127,7 @@ function categoriaDeMarca(marca) {
 
 // ── Cotización de apertura de vehículo (usada por el bot y el ruteo) ───────────
 
-const NOMBRE_TAMANO = { van: 'van', pickup: 'pickup', suv_grande: 'guagua grande' };
+const NOMBRE_TAMANO = { van: 'van', pickup: 'pickup', suv_grande: 'guagua grande', camion: 'camión' };
 
 /**
  * Cotiza la apertura de un vehículo por marca, modelo y tamaño.
@@ -202,20 +209,23 @@ function cotizarApertura(marca, modelo = '') {
 
   // No europeo: por tamaño
   if (tamano !== 'estandar') {
-    const precioGrande = PRECIOS.grande.precio_apertura;
-    const tipoTexto    = NOMBRE_TAMANO[tamano] || 'vehículo grande';
-    if (precioGrande == null) {
+    const esCamion = tamano === 'camion';
+    const precio   = esCamion ? PRECIOS.camion.precio_apertura : PRECIOS.grande.precio_apertura;
+    const tipoTexto = NOMBRE_TAMANO[tamano] || 'vehículo grande';
+    if (precio == null) {
       return {
-        categoria: 'grande', tamano, es_premium: false, precio_min: null,
+        categoria: esCamion ? 'camion' : 'grande', tamano, es_premium: false, precio_min: null,
         precio_varilla: null, precio_desde: null, marca: canon,
         texto: `Para una ${tipoTexto} como la suya el precio se lo confirma nuestro cerrajero al llamarle en unos minutos. ` +
                `Déjeme tomarle los datos para coordinarle.`,
       };
     }
     return {
-      categoria: 'grande', tamano, es_premium: false, precio_min: precioGrande,
+      categoria: esCamion ? 'camion' : 'grande', tamano, es_premium: false, precio_min: precio,
       precio_varilla: null, precio_desde: null, marca: canon,
-      texto: `Para una ${tipoTexto} como la suya la apertura son $${precioGrande}.`,
+      texto: esCamion
+        ? `La apertura de un camión son $${precio}.`
+        : `Para una ${tipoTexto} como la suya la apertura son $${precio}.`,
     };
   }
 
