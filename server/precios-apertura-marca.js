@@ -140,14 +140,29 @@ const NOMBRE_TAMANO = { van: 'van', pickup: 'pickup', suv_grande: 'guagua grande
  *   marca: string|null, texto: string
  * }}
  */
+/** Busca una marca conocida como palabra dentro de un texto libre ("Ford Transit" → Ford). */
+function buscarMarcaEnTexto(texto) {
+  const limpio = _sinAcentos(texto);
+  const ALIAS_TEXTO = [
+    [/\bmercedes\b|\bbenz\b/, 'Mercedes-Benz'], [/\bvw\b/, 'Volkswagen'],
+    [/\brange rover\b|\blandrover\b/, 'Land Rover'], [/\bchevy\b/, 'Chevrolet'],
+  ];
+  for (const [re, m] of ALIAS_TEXTO) if (re.test(limpio)) return m;
+  const todas = [...MARCAS_EXOTICA, ...MARCAS_EUROPEA, ...MARCAS_ECONOMICA];
+  return todas.find(m => new RegExp(`(^|[^a-z0-9])${_sinAcentos(m).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(limpio)) || null;
+}
+
 function cotizarApertura(marca, modelo = '') {
-  const canon      = normalizarMarca(marca);
+  // El agente a veces manda todo junto ("Ford Transit" en marca): clasificamos
+  // marca y tamaño sobre el texto completo para no fallar en esos casos.
+  const textoCompleto = `${marca || ''} ${modelo || ''}`.trim();
+  const canon      = normalizarMarca(marca) || buscarMarcaEnTexto(textoCompleto);
   const nombre     = canon || 'vehículo';
   // Ram solo fabrica pickups/vans: la marca sola ya define el tamaño
-  const tamano     = clasificarTamano(modelo) !== 'estandar'
-    ? clasificarTamano(modelo)
+  const tamano     = clasificarTamano(textoCompleto) !== 'estandar'
+    ? clasificarTamano(textoCompleto)
     : (canon === 'Ram' ? 'pickup' : 'estandar');
-  const esCorvette = canon === 'Chevrolet' && /corvette/.test(_sinAcentos(modelo));
+  const esCorvette = canon === 'Chevrolet' && /corvette/.test(_sinAcentos(textoCompleto));
 
   if (esCorvette) {
     return {
