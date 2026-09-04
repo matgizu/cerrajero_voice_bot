@@ -3,6 +3,7 @@
 const { pool } = require('./db');
 const { asignarCerrajero, asignarEspecialista, marcarUltimoServicio, getCerrajero } = require('./cerrajeros');
 const { cotizarApertura, esPremium } = require('./precios-apertura-marca');
+const { cotizarAperturaCerradura } = require('./precios-apertura-cerradura');
 const { notificarCerrajero } = require('./whatsapp');
 const emitter = require('./events');
 
@@ -19,6 +20,7 @@ function rowToServicio(row) {
     notas_adicionales:       row.notas_adicionales || '',
     marca_vehiculo:          row.marca_vehiculo  || '',
     modelo_vehiculo:         row.modelo_vehiculo || '',
+    tipo_cerradura:          row.tipo_cerradura  || '',
     es_premium:              row.es_premium === true,
     precio_cotizado:         row.precio_cotizado || '',
     estado:                  row.estado,
@@ -35,7 +37,7 @@ function rowToServicio(row) {
 async function guardarServicio(datos) {
   const {
     nombre, telefono, ubicacion, tipo_servicio, es_emergencia, notas_adicionales,
-    marca_vehiculo, modelo_vehiculo,
+    marca_vehiculo, modelo_vehiculo, tipo_cerradura,
   } = datos;
 
   if (!nombre || !telefono || !ubicacion || !tipo_servicio) {
@@ -46,14 +48,18 @@ async function guardarServicio(datos) {
   const esEmergencia   = Boolean(es_emergencia);
   const tiempoEstimado = esEmergencia ? 15 : 30;
 
-  // Lead premium: apertura de vehículo europeo/exótico/Corvette → va directo
-  // al especialista (Mateo). Si no hay especialista, cae al ruteo por zona.
-  const esVehiculo   = tipo_servicio === 'emergencia_vehiculo';
-  const premium      = esVehiculo && marca_vehiculo && esPremium(marca_vehiculo, modelo_vehiculo || '');
-  const cotizacion   = esVehiculo && marca_vehiculo
+  // Lead premium: apertura de vehículo europeo/exótico/Corvette, o cerradura
+  // europea de propiedad → van directo al especialista (Mateo). Si no hay
+  // especialista disponible, cae al ruteo normal por zona.
+  const esVehiculo    = tipo_servicio === 'emergencia_vehiculo';
+  const esPuertaHogar = tipo_servicio === 'apertura_puerta' && tipo_cerradura;
+  const premiumVehiculo  = esVehiculo && marca_vehiculo && esPremium(marca_vehiculo, modelo_vehiculo || '');
+  const cotizacionCerradura = esPuertaHogar ? cotizarAperturaCerradura(tipo_cerradura) : null;
+  const premium       = premiumVehiculo || Boolean(cotizacionCerradura?.es_premium);
+  const cotizacion    = esVehiculo && marca_vehiculo
     ? cotizarApertura(marca_vehiculo, modelo_vehiculo || '')
     : null;
-  const precioTexto  = cotizacion
+  const precioTexto   = cotizacion
     ? (cotizacion.precio_desde
         ? (cotizacion.precio_varilla
             ? `$${cotizacion.precio_varilla} varilla · $${cotizacion.precio_desde} cerradura (metro)`
@@ -61,7 +67,9 @@ async function guardarServicio(datos) {
         : (cotizacion.precio_min != null
             ? `$${cotizacion.precio_min}`
             : `por confirmar (${cotizacion.tamano || 'vehículo grande'})`))
-    : '';
+    : cotizacionCerradura
+      ? (cotizacionCerradura.precio != null ? `$${cotizacionCerradura.precio}` : 'por confirmar (cerrajero llama)')
+      : '';
 
   const cerrajero = premium
     ? (await asignarEspecialista()) || (await asignarCerrajero(ubicacion))
@@ -70,9 +78,9 @@ async function guardarServicio(datos) {
   const { rows } = await pool.query(
     `INSERT INTO servicios
        (id, nombre, telefono, ubicacion, tipo_servicio, es_emergencia,
-        notas_adicionales, marca_vehiculo, modelo_vehiculo, es_premium, precio_cotizado,
+        notas_adicionales, marca_vehiculo, modelo_vehiculo, tipo_cerradura, es_premium, precio_cotizado,
         estado, cerrajero_id, cerrajero_nombre, tiempo_estimado_minutos)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendiente',$12,$13,$14)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendiente',$13,$14,$15)
      RETURNING *`,
     [
       id,
@@ -84,6 +92,7 @@ async function guardarServicio(datos) {
       notas_adicionales || '',
       (marca_vehiculo  || '').trim(),
       (modelo_vehiculo || '').trim(),
+      (tipo_cerradura  || '').trim(),
       premium,
       precioTexto,
       cerrajero?.id    || null,
@@ -107,7 +116,7 @@ async function guardarServicio(datos) {
   console.log(`\n${emoji} NUEVO SERVICIO [${id}]${premium ? ' — LEAD PREMIUM' : ''}`);
   console.log(`   Cliente:   ${servicio.nombre} | ${servicio.telefono}`);
   console.log(`   Ubicación: ${servicio.ubicacion}`);
-  console.log(`   Tipo:      ${servicio.tipo_servicio}${marca_vehiculo ? ` (${marca_vehiculo} ${modelo_vehiculo || ''})`.trimEnd() : ''}`);
+  console.log(`   Tipo:      ${servicio.tipo_servicio}${marca_vehiculo ? ` (${marca_vehiculo} ${modelo_vehiculo || ''})`.trimEnd() : ''}${tipo_cerradura ? ` (${tipo_cerradura})` : ''}`);
   if (precioTexto) console.log(`   Cotizado:  ${precioTexto}`);
   console.log(`   Asignado:  ${cerrajero?.nombre || 'Sin asignar (nadie disponible)'}\n`);
 
@@ -169,10 +178,14 @@ async function reasignarCerrajero(servicioId, cerrajeroId) {
 /**
  * Cotiza un servicio para que el agente lo diga por voz.
  *  - Vehículo (emergencia_vehiculo): por marca/modelo con las 3 categorías.
+ *  - Apertura de puerta de propiedad (apertura_puerta + tipo_cerradura): por
+ *    tipo de cerradura, precios acordados con el cliente (ver
+ *    precios-apertura-cerradura.js). Si no hay precio confirmado para ese
+ *    tipo, ofrece que el cerrajero confirma en un par de minutos.
  *  - Resto de servicios: precios del catálogo en la base de datos (editables
  *    desde el panel admin, sin tocar código).
  */
-async function consultarPrecio({ tipo_servicio, marca, modelo, es_emergencia } = {}) {
+async function consultarPrecio({ tipo_servicio, marca, modelo, tipo_cerradura, es_emergencia } = {}) {
   if (tipo_servicio === 'emergencia_vehiculo' || marca) {
     const q = cotizarApertura(marca || '', modelo || '');
     return {
@@ -185,6 +198,19 @@ async function consultarPrecio({ tipo_servicio, marca, modelo, es_emergencia } =
       precio_desde: q.precio_desde,
       precio: q.precio_varilla == null && q.precio_desde == null ? q.precio_min : null,
       marca: q.marca,
+      respuesta_sugerida: q.texto,
+    };
+  }
+
+  if (tipo_servicio === 'apertura_puerta' && tipo_cerradura) {
+    const q = cotizarAperturaCerradura(tipo_cerradura);
+    return {
+      exito: true,
+      tipo_servicio: 'apertura_puerta',
+      tipo_cerradura: q.tipo,
+      es_premium: q.es_premium,
+      confirma_cerrajero: q.confirma_cerrajero,
+      precio: q.precio,
       respuesta_sugerida: q.texto,
     };
   }
