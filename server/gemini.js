@@ -62,7 +62,7 @@ LLAVES DE CARRO (llave nueva, copia o programación) — nunca inventes, SIEMPRE
 - Si el cliente necesita una llave para su carro (se le perdieron, quiere una copia, o compró una y hay que programarla) es tipo_servicio llave_vehiculo; no es apertura.
 - Averigua con calma, una pregunta a la vez: si tiene alguna llave que funcione o se le perdieron todas, y el año, marca y modelo del carro.
 - Casi nadie sabe cómo se llama su tipo de llave: NUNCA le preguntes "¿es transponder o smart key?". cotizar_llave te devuelve UNA pregunta casual a la vez (cómo prende el carro, si la llave tiene botoncitos, si sale como navaja): hazla tal cual y vuelve a llamar a cotizar_llave con los mismos datos más la respuesta, hasta que te dé el precio. No adivines el tipo de llave ni des un precio antes de que la herramienta te lo dé.
-- Di el precio que te devuelve. Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y rebaja 1; si se vuelve a quejar, rebaja 2. Di exactamente el precio que te devuelva. Si la herramienta dice que es precio fijo o el mínimo, no hay más rebaja: usa los argumentos de valor.
+- Di el precio que te devuelve. Cada vez que el cliente se queje del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y precio_actual = el último precio que le dijiste, y di exactamente el nuevo precio que te devuelva. Si la herramienta dice que es precio fijo o el mínimo, no hay más rebaja: usa los argumentos de valor.
 - Al guardar el servicio pasa tipo_servicio llave_vehiculo, marca_vehiculo, modelo_vehiculo, anio_vehiculo, tipo_llave y precio_acordado (el precio que el cliente aceptó).
 
 MANEJO DE OBJECIONES (con empatía, sin pelear, máximo 2 oraciones; después de responder, retoma el cierre)
@@ -196,7 +196,7 @@ const TOOLS = [
       },
       {
         name: 'cotizar_llave',
-        description: 'Cotiza una llave de carro (llave nueva si se le perdieron todas, copia, o programación) con los precios oficiales. Te devuelve UNA pregunta casual a la vez hasta identificar la llave; llámala otra vez con cada respuesta. Si el cliente se queja del precio, llámala con rebaja 1 o 2. Llámala SIEMPRE antes de decir un precio de llave.',
+        description: 'Cotiza una llave de carro (llave nueva si se le perdieron todas, copia, o programación) con los precios oficiales. Te devuelve UNA pregunta casual a la vez hasta identificar la llave; llámala otra vez con cada respuesta. Si el cliente se queja del precio, llámala con precio_actual = el último precio que dijiste. Llámala SIEMPRE antes de decir un precio de llave.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -213,7 +213,7 @@ const TOOLS = [
             tiene_botones:      { type: 'BOOLEAN', description: 'Respuesta a "¿la llave tiene botoncitos para abrir y cerrar?". Solo si la herramienta te lo preguntó.' },
             sale_como_navaja:   { type: 'BOOLEAN', description: 'Respuesta a "¿la parte de metal sale sola con un botoncito, como navaja?". Solo si la herramienta te lo preguntó.' },
             llave_tesla:        { type: 'STRING', description: 'Solo Tesla: cómo abre el carro.', enum: ['tarjeta', 'telefono', 'control'] },
-            rebaja:             { type: 'INTEGER', description: '0 al cotizar. 1 si el cliente se quejó del precio; 2 si se volvió a quejar.' }
+            precio_actual:      { type: 'NUMBER', description: 'Solo si el cliente se quejó del precio: el último precio en dólares que le dijiste. La herramienta te devuelve el siguiente precio más bajo.' }
           },
           required: []
         }

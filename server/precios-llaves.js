@@ -14,8 +14,9 @@
 //     preguntas casuales. Esta función decide la SIGUIENTE pregunta (una sola)
 //     según lo que el cliente ya contestó (prende_con_boton, tiene_botones,
 //     sale_como_navaja…), y se salta las que no cambian el precio.
-//   - La rebaja también la lleva la herramienta (rebaja 0/1/2) para que el
-//     agente no tenga que recordar en qué escalón va.
+//   - La rebaja la calcula la herramienta: cuando el cliente se queja, el
+//     agente manda el último precio que dijo (precio_actual) y recibe el
+//     siguiente escalón hacia abajo. Así nunca se salta B ni baja de C.
 // ══════════════════════════════════════════════════════════════════════════════
 
 const DATOS = require('./data/precios-llaves.json');
@@ -200,10 +201,16 @@ function escalones(op) {
   return [op.a, op.b, op.c].filter((v, i, arr) => v != null && arr.indexOf(v) === i);
 }
 
-function precioSegunRebaja(op, rebaja) {
+/** Sin precio_actual → A. Con precio_actual → el siguiente escalón por debajo (o el mínimo). */
+function siguientePrecio(op, precioActual) {
   const e = escalones(op);
-  const nivel = Math.max(0, Math.min(Number(rebaja) || 0, e.length - 1));
-  return { precio: e[nivel], nivel, ultimo: nivel === e.length - 1, fijo: e.length === 1, siguiente: e[nivel + 1] ?? null };
+  const actual = Number(String(precioActual ?? '').replace(/[^\d.]/g, ''));
+  let nivel = 0;
+  if (actual > 0) {
+    const debajo = e.findIndex(v => v < actual);
+    nivel = debajo === -1 ? e.length - 1 : debajo;
+  }
+  return { precio: e[nivel], nivel, ultimo: nivel === e.length - 1, fijo: e.length === 1 };
 }
 
 // ── API ──────────────────────────────────────────────────────────────────────
@@ -211,7 +218,7 @@ function precioSegunRebaja(op, rebaja) {
 /**
  * Cotiza una llave de vehículo, paso a paso.
  * @param {{servicio, marca, modelo, anio, prende_con_boton, control_en_tablero,
- *          tiene_botones, sale_como_navaja, llave_tesla, rebaja, tipo_llave}} p
+ *          tiene_botones, sale_como_navaja, llave_tesla, precio_actual, tipo_llave}} p
  */
 function cotizarLlave(p = {}) {
   const { marca, modelo, anio, servicio } = p;
@@ -255,7 +262,7 @@ function cotizarLlave(p = {}) {
   }
 
   const [principal, ...otras] = r.opciones;
-  const neg = precioSegunRebaja(principal, p.rebaja);
+  const neg = siguientePrecio(principal, p.precio_actual);
   const que = `${NOMBRE_SERVICIO[servicio]}, ${NOMBRE_TIPO[r.tipo]}${principal.etiqueta ? ` ${principal.etiqueta}` : ''},`;
 
   let texto, instrucciones;
@@ -263,13 +270,13 @@ function cotizarLlave(p = {}) {
     texto = `Para su ${nombreVehiculo}, ${que} le sale en ${neg.precio} dólares.`;
     instrucciones = neg.fijo
       ? 'Precio fijo, no tiene rebaja. Si el cliente dice que está caro, usa argumentos de valor (técnico certificado, se hace en sitio, más barato que el dealer y sin grúa).'
-      : 'Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y rebaja 1.';
+      : `Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y precio_actual ${neg.precio}.`;
   } else if (neg.ultimo) {
     texto = `Mire, lo más que se lo puedo dejar es en ${neg.precio} dólares.`;
     instrucciones = `Este es el precio mínimo ($${neg.precio}). No bajes más aunque insista; si no acepta, ofrece dejar el servicio anotado sin compromiso.`;
   } else {
     texto = `Mire, se lo puedo dejar en ${neg.precio} dólares.`;
-    instrucciones = `Si el cliente todavía se queja del precio, vuelve a llamar a cotizar_llave con los mismos datos y rebaja ${neg.nivel + 1}.`;
+    instrucciones = `Si el cliente todavía se queja del precio, vuelve a llamar a cotizar_llave con los mismos datos y precio_actual ${neg.precio}.`;
   }
   if (neg.nivel === 0 && principal.nota && /confirma/.test(principal.nota)) {
     instrucciones += ' Aclara que el cerrajero le confirma el precio final antes de empezar.';
@@ -285,7 +292,7 @@ function cotizarLlave(p = {}) {
     tipo_llave: id.descripcion,
     servicio,
     precio: neg.precio,
-    rebaja: neg.nivel,
+    escalon: neg.nivel,
     precio_minimo: escalones(principal).at(-1),
     texto,
     instrucciones: instrucciones + ` Al guardar el servicio usa tipo_llave ${id.descripcion} y precio_acordado ${neg.precio} si el cliente acepta.`,
