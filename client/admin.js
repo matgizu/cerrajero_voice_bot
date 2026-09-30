@@ -16,6 +16,7 @@ const TIPO_LABELS = {
   apertura_caja_fuerte:  '🔒 Caja fuerte',
   instalacion_cerradura: '⚙️ Instalación cerradura',
   emergencia_vehiculo:   '🚗 Emergencia vehículo',
+  llave_vehiculo:        '🔑 Llave de vehículo',
   otro:                  '📋 Otro'
 };
 

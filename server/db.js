@@ -111,6 +111,8 @@ async function initDB() {
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS es_premium      BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS precio_cotizado TEXT DEFAULT '';
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tipo_cerradura  TEXT DEFAULT '';
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS anio_vehiculo   TEXT DEFAULT '';
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tipo_llave      TEXT DEFAULT '';
   `);
 
   // Seed cerrajeros si la tabla está vacía

@@ -21,6 +21,7 @@ const cors = require('cors');
 const { buildSetupMessage, buildGeminiUrl } = require('./gemini');
 const { initDB } = require('./db');
 const { manejarFunctionCall, listarServicios, guardarServicio, consultarPrecio, actualizarEstado, reasignarCerrajero } = require('./services');
+const { cotizarLlave } = require('./precios-llaves');
 const { listarCerrajeros, toggleDisponibilidad } = require('./cerrajeros');
 const { listarCatalogo, crearServicioCatalogo, actualizarServicioCatalogo, eliminarServicioCatalogo } = require('./catalogo');
 const { getYears, getMakes, getModels, listarPreciosVehiculos, upsertPrecioVehiculo, eliminarPrecioVehiculo } = require('./precios-vehiculos');
@@ -231,6 +232,14 @@ app.post('/api/tools/consultar_precio', safe(async (req, res) => {
   console.log('\n📥 Tool webhook consultar_precio:', JSON.stringify(params));
   const resultado = await consultarPrecio(params);
   res.json({ result: resultado.respuesta_sugerida || resultado.mensaje || 'Sin precio disponible' });
+}));
+
+app.post('/api/tools/cotizar_llave', safe(async (req, res) => {
+  const params  = req.body?.parameters || req.body || {};
+  console.log('\n📥 Tool webhook cotizar_llave:', JSON.stringify(params));
+  const r = cotizarLlave(params);
+  // Texto para decir + reglas de negociación en un solo string para el agente
+  res.json({ result: [r.texto && `Dile al cliente: ${r.texto}`, r.instrucciones].filter(Boolean).join('\n') });
 }));
 
 app.get('/api/health', (_req, res) => {

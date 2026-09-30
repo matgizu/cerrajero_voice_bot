@@ -9,6 +9,7 @@ const TIPO_LABELS = {
   apertura_caja_fuerte:  'Apertura caja fuerte',
   instalacion_cerradura: 'Instalación cerradura',
   emergencia_vehiculo:   'Emergencia vehículo',
+  llave_vehiculo:        'Llave de vehículo',
   otro:                  'Otro'
 };
 
@@ -30,6 +31,12 @@ async function notificarCerrajero(cerrajero, servicio) {
   const prioridad = servicio.es_emergencia ? '\n⚠️ *EMERGENCIA — atención inmediata*' : '';
   const tipo      = TIPO_LABELS[servicio.tipo_servicio] || servicio.tipo_servicio;
   const notas     = servicio.notas_adicionales ? `\n📝 Notas: ${servicio.notas_adicionales}` : '';
+  const vehiculo  = [servicio.marca_vehiculo, servicio.modelo_vehiculo, servicio.anio_vehiculo].filter(Boolean).join(' ');
+  const detalle   = [
+    vehiculo ? `\n🚗 Vehículo: ${vehiculo}` : '',
+    servicio.tipo_llave ? `\n🔑 Llave: ${servicio.tipo_llave}` : '',
+    servicio.precio_cotizado ? `\n💵 Precio: ${servicio.precio_cotizado}` : '',
+  ].join('');
 
   const texto = [
     `${emoji} *NUEVO SERVICIO* — Cerrajería Express`,
@@ -38,7 +45,7 @@ async function notificarCerrajero(cerrajero, servicio) {
     `👤 Cliente: ${servicio.nombre}`,
     `📱 Tel: ${servicio.telefono}`,
     `📍 Ubicación: ${servicio.ubicacion}`,
-    `🔧 Servicio: ${tipo}${prioridad}${notas}`,
+    `🔧 Servicio: ${tipo}${prioridad}${detalle}${notas}`,
     ``,
     `⏱️ ETA estimado: ~${servicio.tiempo_estimado_minutos} min`
   ].join('\n');

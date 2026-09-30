@@ -4,6 +4,7 @@ const { pool } = require('./db');
 const { asignarCerrajero, asignarEspecialista, marcarUltimoServicio, getCerrajero } = require('./cerrajeros');
 const { cotizarApertura, esPremium } = require('./precios-apertura-marca');
 const { cotizarAperturaCerradura } = require('./precios-apertura-cerradura');
+const { cotizarLlave } = require('./precios-llaves');
 const { notificarCerrajero } = require('./whatsapp');
 const emitter = require('./events');
 
@@ -21,6 +22,8 @@ function rowToServicio(row) {
     marca_vehiculo:          row.marca_vehiculo  || '',
     modelo_vehiculo:         row.modelo_vehiculo || '',
     tipo_cerradura:          row.tipo_cerradura  || '',
+    anio_vehiculo:           row.anio_vehiculo   || '',
+    tipo_llave:              row.tipo_llave      || '',
     es_premium:              row.es_premium === true,
     precio_cotizado:         row.precio_cotizado || '',
     estado:                  row.estado,
@@ -38,6 +41,7 @@ async function guardarServicio(datos) {
   const {
     nombre, telefono, ubicacion, tipo_servicio, es_emergencia, notas_adicionales,
     marca_vehiculo, modelo_vehiculo, tipo_cerradura,
+    anio_vehiculo, tipo_llave, precio_acordado,
   } = datos;
 
   if (!nombre || !telefono || !ubicacion || !tipo_servicio) {
@@ -59,7 +63,12 @@ async function guardarServicio(datos) {
   const cotizacion    = esVehiculo && marca_vehiculo
     ? cotizarApertura(marca_vehiculo, modelo_vehiculo || '')
     : null;
-  const precioTexto   = cotizacion
+  // Llave de vehículo: el precio lo negocia el agente (A → B → C), así que se
+  // guarda el que el cliente aceptó para que el cerrajero lo sepa.
+  const precioLlave = tipo_servicio === 'llave_vehiculo' && precio_acordado
+    ? `$${String(precio_acordado).replace(/[^\d.]/g, '')}`
+    : '';
+  const precioTexto   = precioLlave || (cotizacion
     ? (cotizacion.precio_desde
         ? (cotizacion.precio_varilla
             ? `$${cotizacion.precio_varilla} varilla · $${cotizacion.precio_desde} cerradura (metro)`
@@ -69,7 +78,7 @@ async function guardarServicio(datos) {
             : `por confirmar (${cotizacion.tamano || 'vehículo grande'})`))
     : cotizacionCerradura
       ? (cotizacionCerradura.precio != null ? `$${cotizacionCerradura.precio}` : 'por confirmar (cerrajero llama)')
-      : '';
+      : '');
 
   const cerrajero = premium
     ? (await asignarEspecialista()) || (await asignarCerrajero(ubicacion))
@@ -79,8 +88,8 @@ async function guardarServicio(datos) {
     `INSERT INTO servicios
        (id, nombre, telefono, ubicacion, tipo_servicio, es_emergencia,
         notas_adicionales, marca_vehiculo, modelo_vehiculo, tipo_cerradura, es_premium, precio_cotizado,
-        estado, cerrajero_id, cerrajero_nombre, tiempo_estimado_minutos)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendiente',$13,$14,$15)
+        estado, cerrajero_id, cerrajero_nombre, tiempo_estimado_minutos, anio_vehiculo, tipo_llave)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendiente',$13,$14,$15,$16,$17)
      RETURNING *`,
     [
       id,
@@ -98,6 +107,8 @@ async function guardarServicio(datos) {
       cerrajero?.id    || null,
       cerrajero?.nombre || null,
       tiempoEstimado,
+      String(anio_vehiculo || '').trim(),
+      String(tipo_llave || '').trim(),
     ]
   );
 
@@ -246,6 +257,7 @@ async function manejarFunctionCall(nombre, args) {
   switch (nombre) {
     case 'guardar_servicio': return guardarServicio(args);
     case 'consultar_precio': return consultarPrecio(args);
+    case 'cotizar_llave':    return cotizarLlave(args);
     default: return { exito: false, mensaje: `Función '${nombre}' no reconocida.` };
   }
 }

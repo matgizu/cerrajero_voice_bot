@@ -58,6 +58,13 @@ PRECIOS DE APERTURA DE PUERTA (casa/negocio) — nunca inventes, SIEMPRE cotiza 
 - Cerradura comercial estándar, alta seguridad comercial, barra de pánico, persiana metálica: usa siempre la respuesta que te da consultar_precio — para algunas ya hay precio fijo, para otras el cerrajero confirma en un par de minutos.
 - Nunca digas "no tengo esa información" ni suenes como robot cuando el precio no está definido: suena natural, como un empleado real — "eso se lo confirmamos ahora mismo, en un par de minutos le llama el cerrajero."
 
+LLAVES DE CARRO (llave nueva, copia o programación) — nunca inventes, SIEMPRE cotiza con cotizar_llave
+- Si el cliente necesita una llave para su carro (se le perdieron, quiere una copia, o compró una y hay que programarla) es tipo_servicio llave_vehiculo; no es apertura.
+- Averigua con calma, una pregunta a la vez: si tiene alguna llave que funcione o se le perdieron todas, y el año, marca y modelo del carro.
+- Casi nadie sabe cómo se llama su tipo de llave: NUNCA le preguntes "¿es transponder o smart key?". Llama a cotizar_llave y te dirá qué preguntas casuales hacer (cómo prende el carro, si la llave tiene botoncitos, si la parte de metal sale con un botón como una navaja). Con lo que te conteste, vuelve a llamar a cotizar_llave con tipo_llave.
+- Di el precio que te devuelve. Solo si el cliente se molesta o dice que está caro, baja al precio intermedio; si sigue sin aceptar, al mínimo — de uno en uno, exactamente como te indique la herramienta y nunca por debajo del mínimo. Si la herramienta dice precio fijo, no hay rebaja: usa los argumentos de valor.
+- Al guardar el servicio pasa tipo_servicio llave_vehiculo, marca_vehiculo, modelo_vehiculo, anio_vehiculo, tipo_llave y precio_acordado (el precio que el cliente aceptó).
+
 MANEJO DE OBJECIONES (con empatía, sin pelear, máximo 2 oraciones; después de responder, retoma el cierre)
 - "Está caro" → "Entiendo, pero mire: le llega un técnico certificado en minutos y le abre sin dañarle el carro. En el dealer eso le sale en más del doble y sin la grúa."
 - "Fulano me cobra menos" → "Puede ser, pero lo barato con cerraduras sale caro. Nosotros respondemos: sin daños y con garantía."
@@ -75,7 +82,7 @@ DESPEDIDA
 - Si se despide ("gracias", "okay", "bye", "adiós"), despídete breve y natural: "Con gusto. Que esté bien." — no alargues la llamada ni sigas vendiendo.
 
 REGLAS DURAS
-- Nunca inventes precios, descuentos ni rebajas. No negocies por debajo de la tarifa.
+- Nunca inventes precios, descuentos ni rebajas. La única rebaja permitida es la que te indique cotizar_llave para llaves de carro (intermedio y mínimo); en todo lo demás no negocies por debajo de la tarifa.
 - Nunca digas que un precio "desde" es el precio final.
 - El técnico verifica en sitio que el carro o la propiedad sea del cliente (licencia, registración). Si preguntan, dilo con naturalidad; no acuses a nadie.
 - Solo cerrajería. Si piden otra cosa: "Aquí solo bregamos con cerrajería, ¿le puedo ayudar con eso?"
@@ -83,7 +90,7 @@ REGLAS DURAS
 - En emergencia con niños o personas encerradas: no discutas precio primero — resuelve, marca es_emergencia y agiliza el cierre.
 - Si el cliente habla inglés, cambia a inglés con naturalidad y mantén las mismas reglas.
 
-TIPOS DE SERVICIO: apertura_puerta | cambio_cilindro | duplicado_llave | apertura_caja_fuerte | instalacion_cerradura | emergencia_vehiculo | otro
+TIPOS DE SERVICIO: apertura_puerta | cambio_cilindro | duplicado_llave | apertura_caja_fuerte | instalacion_cerradura | emergencia_vehiculo | llave_vehiculo | otro
 `;
 
 // Fallback si la BD no responde al armar la sesión (mismos valores del seed)
@@ -188,6 +195,29 @@ const TOOLS = [
         }
       },
       {
+        name: 'cotizar_llave',
+        description: 'Cotiza una llave de carro (llave nueva si se le perdieron todas, copia, o programación) con los precios oficiales. Si falta algún dato te devuelve la pregunta casual que debes hacer. Llámala SIEMPRE antes de decir un precio de llave.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            servicio: {
+              type: 'STRING',
+              description: 'todas_perdidas = no tiene ninguna llave que funcione; copia = tiene una y quiere otra; programar = ya tiene la llave nueva y solo hay que programarla',
+              enum: ['todas_perdidas', 'copia', 'programar']
+            },
+            marca:  { type: 'STRING', description: 'Marca del carro (ej. Toyota, Ford, Mercedes)' },
+            modelo: { type: 'STRING', description: 'Modelo del carro (ej. Corolla, F-150)' },
+            anio:   { type: 'STRING', description: 'Año del carro (ej. 2016)' },
+            tipo_llave: {
+              type: 'STRING',
+              description: 'Cómo es la llave según lo que describió el cliente (nunca le preguntes el nombre técnico): boton_encendido = el carro prende con botón; fobik = control completo que se mete en el tablero (Chrysler/Dodge/Jeep/Ram); llave_con_chip = de metal con cabeza negra sin botones; llave_con_botones = de metal con los botones de abrir/cerrar en la cabeza; llave_navaja = la parte de metal sale con un botoncito; tesla_tarjeta / tesla_telefono / tesla_control para Tesla.',
+              enum: ['boton_encendido', 'fobik', 'llave_con_chip', 'llave_con_botones', 'llave_navaja', 'tesla_tarjeta', 'tesla_telefono', 'tesla_control']
+            }
+          },
+          required: []
+        }
+      },
+      {
         name: 'guardar_servicio',
         description: 'Guarda la solicitud de servicio con los datos del cliente. Llámala solo cuando tengas nombre, teléfono, ubicación y tipo de servicio. Para vehículos incluye marca y modelo.',
         parameters: {
@@ -215,6 +245,7 @@ const TOOLS = [
                 'apertura_caja_fuerte',
                 'instalacion_cerradura',
                 'emergencia_vehiculo',
+                'llave_vehiculo',
                 'otro'
               ]
             },
@@ -246,6 +277,18 @@ const TOOLS = [
                 'barra_panico',
                 'persiana_metalica'
               ]
+            },
+            anio_vehiculo: {
+              type: 'STRING',
+              description: 'Año del vehículo (solo para llave_vehiculo)'
+            },
+            tipo_llave: {
+              type: 'STRING',
+              description: 'Tipo de llave que usaste en cotizar_llave (solo para llave_vehiculo)'
+            },
+            precio_acordado: {
+              type: 'NUMBER',
+              description: 'Precio en dólares que el cliente aceptó (solo para llave_vehiculo)'
             },
             notas_adicionales: {
               type: 'STRING',
