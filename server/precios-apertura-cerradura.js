@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //  PRECIOS DE APERTURA DE PROPIEDAD (HOGAR/NEGOCIO) POR TIPO DE CERRADURA
 //  ------------------------------------------------------------------------------
-//  Reglas acordadas con el cliente (2026-07-29, 2026-08-22, 2026-08-23).
+//  Reglas acordadas con el cliente (2026-07-29, 2026-08-22, 2026-08-23, 2026-09-30).
 //  Lo que el cliente todavía NO confirmó con un monto exacto queda con
 //  precio: null — el agente nunca inventa el número, ofrece que el cerrajero
 //  llama en un par de minutos a confirmarlo (mismo patrón que ya usa el
@@ -60,9 +60,10 @@ function _pomoPerilla(hora) {
 
 // ── Reja/verja residencial ──────────────────────────────────────────────────
 // Cliente 2026-08-23: $95 antes de las 6pm, $125 después de las 6pm.
+// Cliente 2026-09-30: el de antes de las 6pm es "desde $95" (deadbolt de reja).
 function _rejaVerja(hora) {
   if (hora < 18) {
-    return { precio: 95, texto: 'La apertura de la reja son noventa y cinco dólares.' };
+    return { precio: 95, texto: 'La apertura de la reja es desde noventa y cinco dólares.' };
   }
   return { precio: 125, texto: 'Después de las seis de la tarde la apertura de la reja son ciento veinticinco dólares.' };
 }
@@ -110,17 +111,25 @@ function cotizarAperturaCerradura(tipoCerradura) {
       return { tipo: tipoCerradura, precio: r.precio, es_premium: true,
         confirma_cerrajero: false, texto: r.texto };
     }
+    // Cliente 2026-09-30: fuera del área metro no hay precio fijo; se valida y se llama.
     case 'perfil_europeo_fuera_metro':
       return {
         tipo: tipoCerradura, precio: null, es_premium: true, confirma_cerrajero: true,
-        texto: 'Para perfil europeo fuera del área metro eso lo confirmamos nosotros directamente — en un par de minutos le llamamos.',
+        texto: 'Listo, déjeme hacer una validación y nosotros se lo confirmamos. Lo llamamos en breve.',
       };
     case 'cerradura_electronica':
       return {
         tipo: tipoCerradura, precio: null, es_premium: false, confirma_cerrajero: true,
         texto: `Para cerradura electrónica necesitamos una foto para cotizarle exacto — nos la puede mandar por WhatsApp al ${WHATSAPP_FOTO_SMART_LOCK}, y en un par de minutos le confirmamos.`,
       };
+    // Cliente 2026-09-30: sencillo o doble cilindro da igual para la apertura.
+    // Abre y cierra solo con llave: el agente pregunta antes si hay otra llave
+    // adentro (si no, no es una apertura real). Monto aún sin confirmar.
     case 'deadbolt_seguridad':
+      return {
+        tipo: tipoCerradura, precio: null, es_premium: false, confirma_cerrajero: true,
+        texto: 'Sea deadbolt sencillo o doble, la apertura es igual. ' + TEXTO_CONFIRMA_CERRAJERO,
+      };
     case 'cerradura_comercial_estandar':
     case 'alta_seguridad_comercial':
     case 'barra_panico':
