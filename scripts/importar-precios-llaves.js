@@ -82,7 +82,7 @@ function servicioManual(serviceType, keyType) {
   if (b) etiquetas.push(b[1] === '4' ? 'de 4 botones con arranque remoto' : `de ${b[1]} botones`);
   if (/aftermarket/i.test(s)) etiquetas.push('aftermarket (no original)');
   if (/OEM/.test(s) && !/aftermarket/i.test(s)) etiquetas.push('original');
-  if (/blade key con chip/i.test(keyType)) etiquetas.push('llave con chip y el control aparte');
+  if (/blade key con chip/i.test(keyType)) etiquetas.push('y el control aparte');
   const etiqueta = etiquetas.join(', ');
 
   if (/AKL|ALL KEYS LOST|aftermarket|solo se menciona/i.test(s)) return { servicio: 'todas_perdidas', etiqueta };

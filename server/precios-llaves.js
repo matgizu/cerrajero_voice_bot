@@ -11,25 +11,34 @@
 //   - Si el cliente se molesta con el precio, se puede bajar a B y, como último
 //     recurso, a C (nunca menos). Si la fila no tiene B/C, A es precio fijo.
 //   - Casi nadie sabe qué tipo de llave tiene: el agente la identifica con
-//     preguntas casuales (cómo prende el carro, si tiene botones, si la hoja
-//     sale con un botoncito) y pasa la descripción, no el nombre técnico.
+//     preguntas casuales. Esta función decide la SIGUIENTE pregunta (una sola)
+//     según lo que el cliente ya contestó (prende_con_boton, tiene_botones,
+//     sale_como_navaja…), y se salta las que no cambian el precio.
+//   - La rebaja también la lleva la herramienta (rebaja 0/1/2) para que el
+//     agente no tenga que recordar en qué escalón va.
 // ══════════════════════════════════════════════════════════════════════════════
 
 const DATOS = require('./data/precios-llaves.json');
 
 const SERVICIOS = ['todas_perdidas', 'copia', 'programar'];
 
-/** Descripción que da el cliente → tipos técnicos del Excel, en orden de preferencia. */
+/**
+ * Descripción de la llave → tipos técnicos del Excel, en orden de preferencia.
+ * La tabla del cliente no trae "remote"/"flip" para todas las marcas; una llave
+ * con botones o de navaja también lleva chip, así que cae al precio de chip.
+ */
 const TIPOS_LLAVE = {
   boton_encendido:   ['smart', 'proximity', 'advanced'],
   fobik:             ['fobik', 'smart'],
-  llave_con_botones: ['remote', 'flip'],
-  llave_navaja:      ['flip', 'remote'],
-  llave_con_chip:    ['transponder'],
+  llave_con_botones: ['remote', 'flip', 'transponder'],
+  llave_navaja:      ['flip', 'remote', 'transponder'],
+  llave_con_chip:    ['transponder', 'remote'],
   tesla_tarjeta:     ['tesla_tarjeta'],
   tesla_telefono:    ['tesla_telefono'],
   tesla_control:     ['tesla_control'],
 };
+
+const TESLA = { tarjeta: 'tesla_tarjeta', telefono: 'tesla_telefono', control: 'tesla_control' };
 
 const NOMBRE_TIPO = {
   smart: 'llave inteligente (prende con botón)',
@@ -120,56 +129,104 @@ function tiposDelVehiculo(marcaKey, modeloKey, anio) {
   return tipos;
 }
 
-// ── Textos para el agente ────────────────────────────────────────────────────
+// ── Identificación de la llave, una pregunta a la vez ───────────────────────
 
-function preguntasTipoLlave(marcaKey, servicio) {
-  const tiempo = servicio === 'todas_perdidas' ? 'era' : 'es';
-  if (marcaKey === 'tesla') {
-    return 'Pregunta casual: "¿Usted abre el Tesla con la tarjeta, con el teléfono o con el controlito?" → tesla_tarjeta / tesla_telefono / tesla_control.';
+const esSi = v => v === true || /^(true|si|sí|yes|1)$/i.test(String(v ?? '').trim());
+const esNo = v => v === false || /^(false|no|0)$/i.test(String(v ?? '').trim());
+const sinDato = v => !esSi(v) && !esNo(v);
+
+/** Primera opción de precio que exista para una descripción de llave. */
+function resolverOpciones(ctx, descripcion) {
+  for (const tipo of TIPOS_LLAVE[descripcion]) {
+    if (!ctx.tipos.has(tipo)) continue;
+    const manuales = opcionesManuales(ctx.marcaKey, ctx.modeloKey, ctx.anio, tipo, ctx.servicio);
+    const opciones = manuales.length ? manuales : [opcionTabla(ctx.marcaKey, ctx.modeloKey, ctx.anio, tipo, ctx.servicio)].filter(Boolean);
+    if (opciones.length) return { tipo, opciones };
   }
-  const pasos = [
-    `1) "¿Ese carro prende con un botón, o metiendo la llave y dándole vuelta?" → si prende con botón: boton_encendido.`,
-  ];
-  if (MARCAS_FOBIK.has(marcaKey)) {
-    pasos.push(`2) Si prende dándole vuelta: "¿La llave ${tiempo} un control completo que se mete en el tablero, sin parte de metal?" → si sí: fobik.`);
-  }
-  const n = pasos.length + 1;
-  pasos.push(`${n}) "¿La llave ${tiempo} de metal con la cabecita negra nada más, o tiene los botoncitos para abrir y cerrar las puertas?" → sin botones: llave_con_chip.`);
-  pasos.push(`${n + 1}) Si tiene botones: "¿Y la parte de metal sale sola cuando le aprieta un botoncito, como una navaja?" → si sí: llave_navaja; si no: llave_con_botones.`);
-  return 'Identifica la llave con preguntas casuales, UNA a la vez, y vuelve a llamar a cotizar_llave con tipo_llave:\n' + pasos.join('\n');
+  return null;
 }
 
-function instruccionNegociacion(op) {
-  if (op.b == null && op.c == null) {
-    return `Precio fijo: $${op.a}. No tiene rebaja; si el cliente objeta, usa argumentos de valor (técnico certificado, más barato que el dealer, garantía).`;
+const mismaCotizacion = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+
+/**
+ * Devuelve { descripcion } si ya se sabe qué llave es, o { pregunta } con la
+ * siguiente pregunta casual. Se salta preguntas cuya respuesta no cambia el precio.
+ */
+function identificarLlave(ctx, p) {
+  const era = ctx.servicio === 'todas_perdidas' ? 'era' : 'es';
+
+  if (ctx.marcaKey === 'tesla') {
+    const t = TESLA[String(p.llave_tesla || '').toLowerCase()];
+    if (t) return { descripcion: t };
+    return { pregunta: '¿Usted abre el Tesla con la tarjeta, con el teléfono o con el controlito?', parametro: 'llave_tesla (tarjeta | telefono | control)' };
   }
-  const minimo = op.c ?? op.b;
-  let t = `Di $${op.a}. Si el cliente se molesta o dice que está caro, puedes bajar a $${op.b}`;
-  if (op.c != null) t += `; si todavía no acepta, tu último precio es $${op.c}`;
-  t += `. Nunca menos de $${minimo}. Baja de uno en uno y solo si el cliente se queja del precio.`;
-  if (op.nota) t += ` Ojo: ${op.nota}.`;
-  return t;
+
+  if (sinDato(p.prende_con_boton)) {
+    return { pregunta: '¿Ese carro prende con un botón, o metiendo la llave y dándole vuelta?', parametro: 'prende_con_boton (true si prende con botón, false si con llave)' };
+  }
+  if (esSi(p.prende_con_boton)) return { descripcion: 'boton_encendido' };
+
+  if (MARCAS_FOBIK.has(ctx.marcaKey) && ctx.tipos.has('fobik')) {
+    if (sinDato(p.control_en_tablero)) {
+      return { pregunta: `¿La llave ${era} un control completo que se mete en el tablero, sin parte de metal?`, parametro: 'control_en_tablero (true/false)' };
+    }
+    if (esSi(p.control_en_tablero)) return { descripcion: 'fobik' };
+  }
+
+  if (sinDato(p.tiene_botones)) {
+    const conChip = resolverOpciones(ctx, 'llave_con_chip');
+    const conBotones = resolverOpciones(ctx, 'llave_con_botones');
+    const conNavaja = resolverOpciones(ctx, 'llave_navaja');
+    if (conChip && mismaCotizacion(conChip, conBotones) && mismaCotizacion(conChip, conNavaja)) {
+      return { descripcion: 'llave_con_chip' };  // da igual: mismo precio
+    }
+    return { pregunta: `¿La llave ${era} de metal con la cabecita negra nada más, o tiene los botoncitos para abrir y cerrar las puertas?`, parametro: 'tiene_botones (true/false)' };
+  }
+  if (esNo(p.tiene_botones)) return { descripcion: 'llave_con_chip' };
+
+  if (sinDato(p.sale_como_navaja)) {
+    if (mismaCotizacion(resolverOpciones(ctx, 'llave_con_botones'), resolverOpciones(ctx, 'llave_navaja'))) {
+      return { descripcion: 'llave_con_botones' };  // da igual: mismo precio
+    }
+    return { pregunta: '¿Y la parte de metal sale sola cuando le aprieta un botoncito, como una navaja?', parametro: 'sale_como_navaja (true/false)' };
+  }
+  return { descripcion: esSi(p.sale_como_navaja) ? 'llave_navaja' : 'llave_con_botones' };
+}
+
+// ── Negociación A → B → C ────────────────────────────────────────────────────
+
+/** Escalones de precio sin repetir: [A], [A,B] o [A,B,C]. */
+function escalones(op) {
+  return [op.a, op.b, op.c].filter((v, i, arr) => v != null && arr.indexOf(v) === i);
+}
+
+function precioSegunRebaja(op, rebaja) {
+  const e = escalones(op);
+  const nivel = Math.max(0, Math.min(Number(rebaja) || 0, e.length - 1));
+  return { precio: e[nivel], nivel, ultimo: nivel === e.length - 1, fijo: e.length === 1, siguiente: e[nivel + 1] ?? null };
 }
 
 // ── API ──────────────────────────────────────────────────────────────────────
 
 /**
- * Cotiza una llave de vehículo.
- * @param {{marca, modelo, anio, tipo_llave, servicio}} p
- * @returns {{ exito, necesita?, precio?, precio_intermedio?, precio_minimo?, texto, instrucciones }}
+ * Cotiza una llave de vehículo, paso a paso.
+ * @param {{servicio, marca, modelo, anio, prende_con_boton, control_en_tablero,
+ *          tiene_botones, sale_como_navaja, llave_tesla, rebaja, tipo_llave}} p
  */
-function cotizarLlave({ marca, modelo, anio, tipo_llave, servicio } = {}) {
+function cotizarLlave(p = {}) {
+  const { marca, modelo, anio, servicio } = p;
   const confirma = texto => ({
     exito: true, confirma_cerrajero: true, precio: null, texto,
     instrucciones: 'No inventes un precio. Toma los datos y guarda el servicio; el cerrajero llama a confirmar.',
   });
+  const pregunta = (texto, parametro) => ({
+    exito: true, necesita: parametro, texto,
+    instrucciones: `Haz SOLO esta pregunta, tal cual y sin cotizar todavía. Con la respuesta vuelve a llamar a cotizar_llave con los mismos datos más ${parametro}.`,
+  });
 
   if (!servicio || !SERVICIOS.includes(servicio)) {
-    return {
-      exito: true, necesita: 'servicio',
-      texto: '¿Tiene alguna llave de ese carro que todavía funcione, o se le perdieron todas?',
-      instrucciones: 'Si no tiene ninguna llave: todas_perdidas. Si tiene una y quiere otra: copia. Si ya compró la llave y solo hay que programarla: programar.',
-    };
+    return pregunta('¿Tiene alguna llave de ese carro que todavía funcione, o se le perdieron todas?',
+      'servicio (todas_perdidas si no tiene ninguna; copia si tiene una y quiere otra; programar si ya compró la llave nueva)');
   }
 
   const marcaKey = resolverMarca(marca);
@@ -178,62 +235,61 @@ function cotizarLlave({ marca, modelo, anio, tipo_llave, servicio } = {}) {
     return confirma(`Para ese ${marca} la llave se la cotiza el cerrajero directamente; en un par de minutos le llama.`);
   }
   if (!marcaKey || !modelo || !anioN) {
-    return {
-      exito: true, necesita: 'vehiculo',
-      texto: '¿De qué año, marca y modelo es el carro?',
-      instrucciones: 'Necesito año, marca y modelo para cotizar la llave.',
-    };
+    return pregunta('¿De qué año, marca y modelo es el carro?', 'anio, marca y modelo');
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
-  const tipos = tiposDelVehiculo(marcaKey, modeloKey, anioN);
+  const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };
   const nombreVehiculo = `${DATOS.nombres[marcaKey] || marca} ${DATOS.nombres[`${marcaKey}|${modeloKey}`] || modelo} ${anioN}`;
 
-  if (tipos.size === 0) {
+  if (ctx.tipos.size === 0) {
     return confirma(`Para el ${nombreVehiculo} la llave se la cotiza el cerrajero directamente; en un par de minutos le llama.`);
   }
 
-  if (!tipo_llave || !TIPOS_LLAVE[tipo_llave]) {
-    return {
-      exito: true, necesita: 'tipo_llave', vehiculo: nombreVehiculo,
-      texto: '',
-      instrucciones: preguntasTipoLlave(marcaKey, servicio),
-    };
+  // Compatibilidad: si el agente ya manda la descripción final, se respeta.
+  const id = TIPOS_LLAVE[p.tipo_llave] ? { descripcion: p.tipo_llave } : identificarLlave(ctx, p);
+  if (id.pregunta) return { ...pregunta(id.pregunta, id.parametro), vehiculo: nombreVehiculo };
+
+  const r = resolverOpciones(ctx, id.descripcion);
+  if (!r) {
+    return confirma(`Para ese tipo de llave del ${nombreVehiculo} el precio se lo confirma el cerrajero; en un par de minutos le llama.`);
   }
 
-  for (const tipo of TIPOS_LLAVE[tipo_llave]) {
-    if (!tipos.has(tipo)) continue;
-    const manuales = opcionesManuales(marcaKey, modeloKey, anioN, tipo, servicio);
-    const opciones = manuales.length ? manuales : [opcionTabla(marcaKey, modeloKey, anioN, tipo, servicio)].filter(Boolean);
-    if (!opciones.length) continue;
+  const [principal, ...otras] = r.opciones;
+  const neg = precioSegunRebaja(principal, p.rebaja);
+  const que = `${NOMBRE_SERVICIO[servicio]}, ${NOMBRE_TIPO[r.tipo]}${principal.etiqueta ? ` ${principal.etiqueta}` : ''},`;
 
-    const [principal, ...otras] = opciones;
-    const que = `${NOMBRE_SERVICIO[servicio]}, ${NOMBRE_TIPO[tipo]}${principal.etiqueta ? ` ${principal.etiqueta}` : ''},`;
-    let instrucciones = instruccionNegociacion(principal);
-    for (const o of otras) {
-      instrucciones += ` Otra opción para este carro — ${o.etiqueta || 'alternativa'}: $${o.a}` +
-        (o.b != null ? ` (puedes bajar a $${o.b}${o.c != null ? `, mínimo $${o.c}` : ''})` : ' (fijo)') +
-        (o.a < principal.a
-          ? '. Ofrécela si el cliente busca algo más económico.'
-          : '. Si la llave del cliente es de ese tipo, cotiza esta en vez de la primera.');
-    }
-    if (principal.nota && /confirma/.test(principal.nota)) {
-      instrucciones += ' Aclara que el cerrajero le confirma el precio final antes de empezar.';
-    }
-    return {
-      exito: true,
-      vehiculo: nombreVehiculo,
-      tipo_llave: tipo,
-      servicio,
-      precio: principal.a,
-      precio_intermedio: principal.b,
-      precio_minimo: principal.c ?? principal.b ?? principal.a,
-      negociable: principal.b != null,
-      texto: `Para su ${nombreVehiculo}, ${que} le sale en ${principal.a} dólares.`,
-      instrucciones,
-    };
+  let texto, instrucciones;
+  if (neg.nivel === 0) {
+    texto = `Para su ${nombreVehiculo}, ${que} le sale en ${neg.precio} dólares.`;
+    instrucciones = neg.fijo
+      ? 'Precio fijo, no tiene rebaja. Si el cliente dice que está caro, usa argumentos de valor (técnico certificado, se hace en sitio, más barato que el dealer y sin grúa).'
+      : 'Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y rebaja 1.';
+  } else if (neg.ultimo) {
+    texto = `Mire, lo más que se lo puedo dejar es en ${neg.precio} dólares.`;
+    instrucciones = `Este es el precio mínimo ($${neg.precio}). No bajes más aunque insista; si no acepta, ofrece dejar el servicio anotado sin compromiso.`;
+  } else {
+    texto = `Mire, se lo puedo dejar en ${neg.precio} dólares.`;
+    instrucciones = `Si el cliente todavía se queja del precio, vuelve a llamar a cotizar_llave con los mismos datos y rebaja ${neg.nivel + 1}.`;
+  }
+  if (neg.nivel === 0 && principal.nota && /confirma/.test(principal.nota)) {
+    instrucciones += ' Aclara que el cerrajero le confirma el precio final antes de empezar.';
+  }
+  for (const o of otras) {
+    instrucciones += ` Hay otra opción para este carro — ${o.etiqueta || 'alternativa'}: ${o.a} dólares` +
+      (o.a < principal.a ? '; ofrécela si el cliente busca algo más económico.' : '; menciónala solo si la llave del cliente es de ese tipo.');
   }
 
-  return confirma(`Para ese tipo de llave del ${nombreVehiculo} el precio se lo confirma el cerrajero; en un par de minutos le llama.`);
+  return {
+    exito: true,
+    vehiculo: nombreVehiculo,
+    tipo_llave: id.descripcion,
+    servicio,
+    precio: neg.precio,
+    rebaja: neg.nivel,
+    precio_minimo: escalones(principal).at(-1),
+    texto,
+    instrucciones: instrucciones + ` Al guardar el servicio usa tipo_llave ${id.descripcion} y precio_acordado ${neg.precio} si el cliente acepta.`,
+  };
 }
 
 module.exports = { cotizarLlave, TIPOS_LLAVE, SERVICIOS };

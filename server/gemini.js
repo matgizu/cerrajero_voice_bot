@@ -61,8 +61,8 @@ PRECIOS DE APERTURA DE PUERTA (casa/negocio) — nunca inventes, SIEMPRE cotiza 
 LLAVES DE CARRO (llave nueva, copia o programación) — nunca inventes, SIEMPRE cotiza con cotizar_llave
 - Si el cliente necesita una llave para su carro (se le perdieron, quiere una copia, o compró una y hay que programarla) es tipo_servicio llave_vehiculo; no es apertura.
 - Averigua con calma, una pregunta a la vez: si tiene alguna llave que funcione o se le perdieron todas, y el año, marca y modelo del carro.
-- Casi nadie sabe cómo se llama su tipo de llave: NUNCA le preguntes "¿es transponder o smart key?". Llama a cotizar_llave y te dirá qué preguntas casuales hacer (cómo prende el carro, si la llave tiene botoncitos, si la parte de metal sale con un botón como una navaja). Con lo que te conteste, vuelve a llamar a cotizar_llave con tipo_llave.
-- Di el precio que te devuelve. Solo si el cliente se molesta o dice que está caro, baja al precio intermedio; si sigue sin aceptar, al mínimo — de uno en uno, exactamente como te indique la herramienta y nunca por debajo del mínimo. Si la herramienta dice precio fijo, no hay rebaja: usa los argumentos de valor.
+- Casi nadie sabe cómo se llama su tipo de llave: NUNCA le preguntes "¿es transponder o smart key?". cotizar_llave te devuelve UNA pregunta casual a la vez (cómo prende el carro, si la llave tiene botoncitos, si sale como navaja): hazla tal cual y vuelve a llamar a cotizar_llave con los mismos datos más la respuesta, hasta que te dé el precio. No adivines el tipo de llave ni des un precio antes de que la herramienta te lo dé.
+- Di el precio que te devuelve. Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y rebaja 1; si se vuelve a quejar, rebaja 2. Di exactamente el precio que te devuelva. Si la herramienta dice que es precio fijo o el mínimo, no hay más rebaja: usa los argumentos de valor.
 - Al guardar el servicio pasa tipo_servicio llave_vehiculo, marca_vehiculo, modelo_vehiculo, anio_vehiculo, tipo_llave y precio_acordado (el precio que el cliente aceptó).
 
 MANEJO DE OBJECIONES (con empatía, sin pelear, máximo 2 oraciones; después de responder, retoma el cierre)
@@ -196,7 +196,7 @@ const TOOLS = [
       },
       {
         name: 'cotizar_llave',
-        description: 'Cotiza una llave de carro (llave nueva si se le perdieron todas, copia, o programación) con los precios oficiales. Si falta algún dato te devuelve la pregunta casual que debes hacer. Llámala SIEMPRE antes de decir un precio de llave.',
+        description: 'Cotiza una llave de carro (llave nueva si se le perdieron todas, copia, o programación) con los precios oficiales. Te devuelve UNA pregunta casual a la vez hasta identificar la llave; llámala otra vez con cada respuesta. Si el cliente se queja del precio, llámala con rebaja 1 o 2. Llámala SIEMPRE antes de decir un precio de llave.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -208,11 +208,12 @@ const TOOLS = [
             marca:  { type: 'STRING', description: 'Marca del carro (ej. Toyota, Ford, Mercedes)' },
             modelo: { type: 'STRING', description: 'Modelo del carro (ej. Corolla, F-150)' },
             anio:   { type: 'STRING', description: 'Año del carro (ej. 2016)' },
-            tipo_llave: {
-              type: 'STRING',
-              description: 'Cómo es la llave según lo que describió el cliente (nunca le preguntes el nombre técnico): boton_encendido = el carro prende con botón; fobik = control completo que se mete en el tablero (Chrysler/Dodge/Jeep/Ram); llave_con_chip = de metal con cabeza negra sin botones; llave_con_botones = de metal con los botones de abrir/cerrar en la cabeza; llave_navaja = la parte de metal sale con un botoncito; tesla_tarjeta / tesla_telefono / tesla_control para Tesla.',
-              enum: ['boton_encendido', 'fobik', 'llave_con_chip', 'llave_con_botones', 'llave_navaja', 'tesla_tarjeta', 'tesla_telefono', 'tesla_control']
-            }
+            prende_con_boton:   { type: 'BOOLEAN', description: 'Respuesta a "¿prende con un botón o metiendo la llave?": true = botón, false = llave. Solo si la herramienta te lo preguntó.' },
+            control_en_tablero: { type: 'BOOLEAN', description: 'Respuesta a "¿es un control completo que se mete en el tablero?". Solo si la herramienta te lo preguntó.' },
+            tiene_botones:      { type: 'BOOLEAN', description: 'Respuesta a "¿la llave tiene botoncitos para abrir y cerrar?". Solo si la herramienta te lo preguntó.' },
+            sale_como_navaja:   { type: 'BOOLEAN', description: 'Respuesta a "¿la parte de metal sale sola con un botoncito, como navaja?". Solo si la herramienta te lo preguntó.' },
+            llave_tesla:        { type: 'STRING', description: 'Solo Tesla: cómo abre el carro.', enum: ['tarjeta', 'telefono', 'control'] },
+            rebaja:             { type: 'INTEGER', description: '0 al cotizar. 1 si el cliente se quejó del precio; 2 si se volvió a quejar.' }
           },
           required: []
         }
