@@ -87,11 +87,18 @@ function parseSampleRate(format) {
   return match ? parseInt(match[1], 10) : 16000;
 }
 
+/** El agente ya habla el formato telefónico de Twilio: μ-law 8kHz sin conversión. */
+function esUlaw(format) {
+  return format === 'ulaw_8000';
+}
+
 // ── Bridge Twilio ↔ ElevenLabs ────────────────────────────────────────────────
 
 /**
  * Conecta un WebSocket de Twilio Media Streams con ElevenLabs Conversational AI.
- * Convierte audio μ-law 8kHz (Twilio) ↔ PCM16 16kHz (ElevenLabs).
+ * Si el agente está configurado en ulaw_8000 (recomendado para teléfono) el
+ * audio pasa directo sin tocarlo; si está en pcm_*, se convierte
+ * μ-law 8kHz (Twilio) ↔ PCM16 (ElevenLabs).
  *
  * @param {WebSocket} twilioWs - WebSocket de Twilio Media Streams
  */
@@ -111,7 +118,15 @@ function handleTwilioStream(twilioWs) {
   let streamSid      = null;
   let elReady        = false;
   let outputRate     = 16000;
-  const audioQueue   = [];   // Buffer hasta que ElevenLabs esté listo
+  let outputUlaw     = false;
+  let inputUlaw      = false;
+  const audioQueue   = [];   // μ-law crudo de Twilio hasta que ElevenLabs esté listo
+
+  /** μ-law de Twilio → base64 en el formato de entrada que espera el agente. */
+  function audioParaAgente(ulaw) {
+    if (inputUlaw) return ulaw.toString('base64');
+    return upsample8to16(ulawToPcm16(ulaw)).toString('base64');
+  }
 
   // ── ElevenLabs → Twilio ──────────────────────────────────────────────────
 
@@ -132,23 +147,24 @@ function handleTwilioStream(twilioWs) {
 
         case 'conversation_initiation_metadata': {
           const meta = msg.conversation_initiation_metadata_event || {};
+          outputUlaw = esUlaw(meta.agent_output_audio_format);
+          inputUlaw  = esUlaw(meta.user_input_audio_format);
           outputRate = parseSampleRate(meta.agent_output_audio_format);
           elReady    = true;
-          console.log(`🎙️ ElevenLabs listo | ID: ${meta.conversation_id} | Audio salida: ${outputRate}Hz`);
+          console.log(`🎙️ ElevenLabs listo | ID: ${meta.conversation_id} | Audio entrada: ${meta.user_input_audio_format} | salida: ${meta.agent_output_audio_format}`);
           // Vaciar cola de audio del cliente
           while (audioQueue.length > 0) {
             if (elWs.readyState === WebSocket.OPEN)
-              elWs.send(JSON.stringify({ user_audio_chunk: audioQueue.shift() }));
+              elWs.send(JSON.stringify({ user_audio_chunk: audioParaAgente(audioQueue.shift()) }));
           }
           break;
         }
 
         case 'audio': {
           if (!streamSid || twilioWs.readyState !== WebSocket.OPEN) break;
-          // PCM16 N-kHz → μ-law 8kHz → Twilio
-          const pcmEl  = Buffer.from(msg.audio_event.audio_base_64, 'base64');
-          const pcm8   = downsampleTo8(pcmEl, outputRate);
-          const ulaw   = pcm16ToUlaw(pcm8);
+          // ulaw_8000 pasa directo; PCM16 N-kHz → μ-law 8kHz → Twilio
+          const audioEl = Buffer.from(msg.audio_event.audio_base_64, 'base64');
+          const ulaw    = outputUlaw ? audioEl : pcm16ToUlaw(downsampleTo8(audioEl, outputRate));
           // Twilio limita el tamaño de cada mensaje WS: enviar en frames de
           // 200ms (1600 bytes μ-law @8kHz). Un chunk grande (frase completa)
           // en un solo mensaje dispara el error 31924 y Twilio cuelga.
@@ -212,15 +228,12 @@ function handleTwilioStream(twilioWs) {
           break;
 
         case 'media': {
-          // μ-law 8kHz → PCM16 16kHz → ElevenLabs
-          const ulaw  = Buffer.from(msg.media.payload, 'base64');
-          const pcm8  = ulawToPcm16(ulaw);
-          const pcm16 = upsample8to16(pcm8);
-          const b64   = pcm16.toString('base64');
+          // μ-law 8kHz → formato de entrada del agente → ElevenLabs
+          const ulaw = Buffer.from(msg.media.payload, 'base64');
           if (elReady && elWs.readyState === WebSocket.OPEN) {
-            elWs.send(JSON.stringify({ user_audio_chunk: b64 }));
+            elWs.send(JSON.stringify({ user_audio_chunk: audioParaAgente(ulaw) }));
           } else {
-            audioQueue.push(b64);
+            audioQueue.push(ulaw);
           }
           break;
         }
