@@ -68,6 +68,9 @@ const ALIAS_MARCA = {
   mercedesbenz: 'mercedes', benz: 'mercedes', chevy: 'chevrolet', vw: 'volkswagen',
   landrover: 'landrover', rangerover: 'landrover', infinity: 'infiniti', mini: 'mini',
   alfaromeo: 'alfaromeo', mitsubichi: 'mitsubishi', huyndai: 'hyundai', hiundai: 'hyundai',
+  // Pronunciación boricua / transcripción
+  jonda: 'honda', yip: 'jeep', yeep: 'jeep', chevrole: 'chevrolet', chebrolet: 'chevrolet',
+  jundai: 'hyundai', jiundai: 'hyundai', nisan: 'nissan', masda: 'mazda', suburu: 'subaru',
 };
 
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -81,7 +84,13 @@ function resolverMarca(marca) {
   const directa = ALIAS_MARCA[m] || m;
   if (DATOS.tabla[directa] || DATOS.manuales.some(x => x.marca === directa)) return directa;
   // "Toyota Corolla" en el campo marca, o marca con errores menores
-  return Object.keys(DATOS.tabla).find(k => m.startsWith(k) || k.startsWith(m)) || null;
+  const prefijo = Object.keys(DATOS.tabla).find(k => m.startsWith(k) || k.startsWith(m));
+  if (prefijo) return prefijo;
+  const parecida = Object.keys(DATOS.tabla)
+    .map(k => ({ k, d: distancia(m, k) }))
+    .filter(x => m.length >= 4 && x.d <= (m.length >= 7 ? 2 : 1))
+    .sort((a, b) => a.d - b.d)[0];
+  return parecida?.k || null;
 }
 
 function resolverModelo(marcaKey, modelo) {
@@ -262,11 +271,20 @@ function cotizarLlave(p = {}) {
 
   const marcaKey = resolverMarca(marca);
   const anioN = parseAnio(anio);
-  if (marca && modelo && anioN && !marcaKey) {
-    return confirma(`Para ese ${marca} la llave se la cotiza el cerrajero directamente; en un par de minutos le llama.`);
+  if (marca && !marcaKey) {
+    // Puede ser una marca que no está en el Excel (Lamborghini) o algo mal
+    // escuchado por el acento / la línea ("Carreto"). El agente decide.
+    return {
+      exito: true, necesita: 'marca', precio: null, texto: '',
+      instrucciones: `No reconozco la marca "${marca}". Si no suena a una marca de carro real, seguro no se escuchó bien: pide con amabilidad que te la repita ("Perdone, no le escuché bien, ¿me repite la marca del carro, por favor?") y vuelve a llamar a cotizar_llave. Nunca corrijas al cliente. Si el cliente confirma que es una marca real que no está en la lista, dile: "Para ese carro la llave se la cotiza el cerrajero directamente; en un par de minutos le llama."`,
+    };
   }
   if (!marcaKey || !modelo || !anioN) {
     return pregunta('¿De qué año, marca y modelo es el carro?', 'anio, marca y modelo');
+  }
+  const anioMax = new Date().getFullYear() + 1;
+  if (anioN < 1950 || anioN > anioMax) {
+    return pregunta('Perdone, no le escuché bien el año, ¿de qué año es el carro?', 'anio');
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
   const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };
