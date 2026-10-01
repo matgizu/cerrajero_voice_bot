@@ -357,8 +357,6 @@
     $('consulta-activa').checked = a.activa;
     $('consulta-estado').textContent = a.activa ? 'Prendida' : 'Apagada';
     $('consulta-estado').classList.toggle('on', a.activa);
-    if (document.activeElement !== $('consulta-whatsapp')) $('consulta-whatsapp').value = a.whatsapp || '';
-    $('consulta-apikey').placeholder = a.apikey_configurada ? `Guardada (${a.apikey_vista}) — pega otra para cambiarla` : 'Pegar la clave';
     $('consulta-espera').value = String(a.espera_max_seg || 120);
   }
 
@@ -371,7 +369,7 @@
       return `<div class="consulta ${c.estado}" data-id="${esc(c.id)}">
         <div class="consulta-head">
           <span class="chip ${clase}">${txt}</span>
-          <span class="panel-hint">${fmtFechaHora(c.creada_en)}${c.numero_cliente ? ` · ${fmtTelefono(c.numero_cliente)}` : ''}${c.whatsapp_ok ? ' · WhatsApp enviado' : ' · <span style="color:var(--warning)">WhatsApp no enviado</span>'}</span>
+          <span class="panel-hint">${fmtFechaHora(c.creada_en)}${c.numero_cliente ? ` · ${fmtTelefono(c.numero_cliente)}` : ''}${c.aviso_ok ? ' · 📲 Dueño avisado' : ' · <span style="color:var(--warning)">Sin celular con avisos</span>'}</span>
         </div>
         <div class="consulta-caso">${esc(c.resumen)}</div>
         <div class="consulta-pregunta">❓ ${esc(c.pregunta)}</div>
@@ -428,21 +426,63 @@
 
   $('consulta-activa').addEventListener('change', async e => {
     const activa = e.target.checked;
-    if (activa && !$('consulta-whatsapp').value.trim()) {
-      if (typeof showToast === 'function') showToast('Pon el WhatsApp del dueño. Mientras tanto se puede responder desde aquí.', 'info');
+    if (activa && duenoConAvisos === 0 && typeof showToast === 'function') {
+      showToast('Ningún celular del dueño tiene avisos activos todavía. Mientras tanto se puede responder desde aquí.', 'info');
     }
     if (await guardarAjustesConsulta({ activa }) && typeof showToast === 'function') {
       showToast(activa ? '🧑‍💼 Consulta al dueño PRENDIDA' : 'Consulta al dueño apagada: el bot promete llamar en breve', 'info');
     }
   });
   $('consulta-guardar').addEventListener('click', async () => {
-    const cambios = { whatsapp: $('consulta-whatsapp').value, espera_max_seg: Number($('consulta-espera').value) };
-    const k = $('consulta-apikey').value.trim();
-    if (k) cambios.callmebot_apikey = k;
-    if (await guardarAjustesConsulta(cambios)) {
-      $('consulta-apikey').value = '';
-      if (typeof showToast === 'function') showToast('Configuración guardada', 'info');
+    if (await guardarAjustesConsulta({ espera_max_seg: Number($('consulta-espera').value) }) && typeof showToast === 'function') {
+      showToast('Configuración guardada', 'info');
     }
+  });
+
+  // ── App del dueño ───────────────────────────────────────────────────────────
+  let duenoConAvisos = null;
+
+  async function cargarDueno() {
+    try {
+      const { dispositivos } = await (await fetch('/api/centro/dueno')).json();
+      duenoConAvisos = dispositivos.filter(d => d.avisos).length;
+      $('dueno-dispositivos').innerHTML = dispositivos.length
+        ? `${dispositivos.length} celular${dispositivos.length === 1 ? '' : 'es'} conectado${dispositivos.length === 1 ? '' : 's'} · ` +
+          (duenoConAvisos ? `<span style="color:var(--success)">🔔 ${duenoConAvisos} con avisos activos</span>` : '<span style="color:var(--warning)">ninguno con avisos activos</span>')
+        : 'Ningún celular conectado todavía';
+    } catch (_) {}
+  }
+
+  $('dueno-enlace').addEventListener('click', async () => {
+    if (!confirm('Se genera un enlace nuevo y el anterior deja de servir (los celulares ya conectados siguen funcionando). ¿Continuar?')) return;
+    try {
+      const { url } = await (await fetch('/api/centro/dueno/enlace', { method: 'POST' })).json();
+      $('dueno-link').hidden = false;
+      $('dueno-link-url').value = url;
+      $('dueno-link-url').select();
+    } catch (_) { if (typeof showToast === 'function') showToast('No se pudo generar el enlace', 'error'); }
+  });
+  $('dueno-link-copiar').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('dueno-link-url').value); showToast('Enlace copiado', 'info'); }
+    catch (_) { $('dueno-link-url').select(); document.execCommand('copy'); showToast('Enlace copiado', 'info'); }
+  });
+  $('dueno-link-compartir').addEventListener('click', async () => {
+    const url = $('dueno-link-url').value;
+    if (navigator.share) { try { await navigator.share({ title: 'App del dueño — Tu Cerrajero PR', text: 'Abre este enlace en tu celular:', url }); } catch (_) {} }
+    else { await navigator.clipboard.writeText(url).catch(() => {}); showToast('Enlace copiado (compartir no disponible en este navegador)', 'info'); }
+  });
+  $('dueno-prueba').addEventListener('click', async () => {
+    try {
+      const { enviados } = await (await fetch('/api/centro/dueno/prueba', { method: 'POST' })).json();
+      showToast(enviados ? `🔔 Aviso enviado a ${enviados} celular${enviados === 1 ? '' : 'es'}` : 'Ningún celular tiene avisos activos', enviados ? 'info' : 'error');
+    } catch (_) { showToast('No se pudo enviar', 'error'); }
+  });
+  $('dueno-desconectar').addEventListener('click', async () => {
+    if (!confirm('Se desconectan todos los celulares del dueño y el enlace actual deja de servir. ¿Continuar?')) return;
+    await fetch('/api/centro/dueno/dispositivos', { method: 'DELETE' });
+    $('dueno-link').hidden = true;
+    cargarDueno();
+    showToast('Celulares desconectados', 'info');
   });
 
   // ── Controles ───────────────────────────────────────────────────────────────
@@ -453,5 +493,7 @@
   cargarHistorial();
   cargarNumerosPrueba();
   cargarConsultas();
+  cargarDueno();
+  setInterval(cargarDueno, 30_000);
   setInterval(cargarResumen, 20_000);
 })();

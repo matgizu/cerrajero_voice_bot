@@ -1053,3 +1053,12 @@ body {
 .switch-texto { font-size: 13px; font-weight: 600; color: var(--muted); }
 .switch-texto.on { color: var(--success); }
 @media (max-width: 480px) { .consulta-responder { flex-direction: column; } }
+
+/* App del dueño */
+.dueno-app { margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); display: flex; flex-direction: column; gap: 8px; }
+.dueno-app-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.dueno-app p { line-height: 1.5; }
+.dueno-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.dueno-link { display: flex; gap: 8px; flex-wrap: wrap; }
+.dueno-link input { flex: 1; min-width: 220px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
+.dueno-link[hidden] { display: none; }

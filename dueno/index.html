@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cerrajero PR">
+<link rel="manifest" href="/dueno/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/dueno/apple-touch-icon.png">
+<link rel="icon" href="/dueno/icon-192.png">
+<title>Consultas — Tu Cerrajero Puerto Rico</title>
+<style>
+  :root {
+    --bg:#0d1117; --card:#161b22; --card2:#21262d; --borde:#30363d; --texto:#e6edf3; --tenue:#8b949e;
+    --acento:#f0b429; --ok:#3fb950; --alerta:#e3a008; --peligro:#f85149; --info:#58a6ff;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--texto); }
+  body { font:16px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  header { position:sticky; top:0; z-index:5; background:rgba(13,17,23,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--borde); padding:12px 16px; display:flex; align-items:center; gap:10px; }
+  header img { width:32px; height:32px; border-radius:8px; }
+  header h1 { font-size:17px; margin:0; } header small { color:var(--tenue); display:block; font-size:12px; }
+  .estado-red { margin-left:auto; font-size:12px; color:var(--tenue); white-space:nowrap; }
+  main { max-width:620px; margin:0 auto; padding:14px 16px 48px; }
+  .aviso { border-radius:12px; padding:12px 14px; margin-bottom:14px; font-size:14px; border:1px solid var(--borde); background:var(--card); }
+  .aviso strong { display:block; margin-bottom:4px; font-size:15px; }
+  .aviso.alerta { border-color:rgba(227,160,8,.45); background:rgba(227,160,8,.08); }
+  .aviso.ok { border-color:rgba(63,185,80,.4); background:rgba(63,185,80,.08); }
+  .aviso ol { margin:6px 0 0; padding-left:20px; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:12px; }
+  .btn { padding:14px 16px; font-weight:700; width:100%; }
+  .btn-acento { background:var(--acento); color:#000; }
+  .btn-borde { background:transparent; color:var(--texto); border:1px solid var(--borde); font-weight:600; }
+  .btn:disabled { opacity:.55; }
+  .fila-botones { display:flex; gap:8px; margin-top:10px; } .fila-botones .btn { padding:11px; font-size:14px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--tenue); margin:22px 0 10px; }
+  .vacio { text-align:center; color:var(--tenue); padding:34px 10px; border:1px dashed var(--borde); border-radius:12px; }
+  .vacio .grande { font-size:34px; display:block; margin-bottom:6px; }
+  .consulta { background:var(--card); border:1px solid var(--borde); border-left:4px solid var(--alerta); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .consulta.foco { box-shadow:0 0 0 2px var(--acento); }
+  .c-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .punto { width:9px; height:9px; border-radius:50%; background:var(--peligro); animation:latido 1.2s infinite; }
+  @keyframes latido { 50% { opacity:.25; } }
+  .espera { font-weight:700; color:var(--alerta); font-variant-numeric:tabular-nums; }
+  .cliente { margin-left:auto; color:var(--tenue); font-size:13px; }
+  .caso { font-size:16px; margin:4px 0 6px; } .pregunta { font-size:17px; font-weight:700; margin-bottom:10px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .chip { background:var(--card2); color:var(--texto); border:1px solid var(--borde); padding:8px 12px; border-radius:20px; font-size:14px; font-weight:600; }
+  textarea { width:100%; min-height:84px; background:#0b0f14; color:var(--texto); border:1px solid var(--borde); border-radius:12px; padding:12px; font:inherit; resize:vertical; }
+  textarea:focus { outline:2px solid var(--acento); border-color:transparent; }
+  .rapidas { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .rapidas button { background:transparent; color:var(--tenue); border:1px solid var(--borde); padding:10px 12px; font-size:14px; text-align:left; }
+  .hecha { background:var(--card); border:1px solid var(--borde); border-left:4px solid var(--ok); border-radius:12px; padding:12px 14px; margin-bottom:10px; font-size:14px; }
+  .hecha.expirada { border-left-color:var(--borde); }
+  .hecha .resp { color:var(--ok); margin-top:4px; } .hecha .meta { color:var(--tenue); font-size:12px; }
+  .toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--card2); border:1px solid var(--borde); padding:12px 16px; border-radius:12px; font-size:14px; max-width:90vw; z-index:10; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <img src="/dueno/icon-192.png" alt="">
+  <div><h1>Consultas de precio</h1><small>Tu Cerrajero Puerto Rico</small></div>
+  <span class="estado-red" id="red">…</span>
+</header>
+<main>
+  <div id="sin-acceso" class="aviso alerta" hidden>
+    <strong>Este celular no está conectado</strong>
+    Pídele al administrador el enlace de acceso del panel (Centro de mando → App del dueño) y ábrelo en este celular.
+  </div>
+
+  <div id="app" hidden>
+    <div id="avisos"></div>
+    <h2>Pendientes</h2>
+    <div id="pendientes"></div>
+    <h2>Recientes</h2>
+    <div id="recientes"></div>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const RAPIDAS = ['Dile que lo llamamos en breve para darle el precio', 'Dile que el técnico le cotiza en el sitio'];
+const MONTOS = [65, 75, 95, 125, 150, 200, 250];
+let estado = null, consultas = [], conocidas = new Set(), primeraCarga = true;
+const borradores = {};   // texto escrito por consulta (sobrevive a los refrescos)
+
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
+}
+
+const fmtEspera = iso => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const fmtHora = iso => new Date(iso).toLocaleString('es-PR', { timeZone:'America/Puerto_Rico', day:'2-digit', month:'short', hour:'numeric', minute:'2-digit' });
+function fmtTel(n) {
+  const d = String(n || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  return n || 'Cliente en línea';
+}
+
+async function api(ruta, opciones = {}) {
+  const r = await fetch(`/dueno/api${ruta}`, { credentials:'same-origin', ...opciones, headers:{ 'Content-Type':'application/json', ...(opciones.headers || {}) } });
+  if (r.status === 401) { mostrarSinAcceso(); throw new Error('sin acceso'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Error');
+  return d;
+}
+
+function mostrarSinAcceso() { $('app').hidden = true; $('sin-acceso').hidden = false; $('red').textContent = ''; }
+
+// ── Avisos (notificaciones push) ─────────────────────────────────────────────
+const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const instalada = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const soportaPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+function b64aUint8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function activarAvisos() {
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') { pintarAvisos(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64aUint8(estado.vapid) });
+    await api('/suscripcion', { method:'POST', body:JSON.stringify(sub) });
+    estado.avisos = true;
+    toast('🔔 Avisos activados');
+  } catch (err) {
+    toast('No se pudieron activar los avisos: ' + err.message, 4000);
+  }
+  pintarAvisos();
+}
+
+function pintarAvisos() {
+  const c = $('avisos');
+  if (!soportaPush) {
+    c.innerHTML = esIOS && !instalada
+      ? `<div class="aviso alerta"><strong>📲 Para recibir avisos en iPhone</strong>
+          <ol><li>Toca el botón <b>Compartir</b> (cuadrito con flecha) abajo en Safari.</li>
+          <li>Elige <b>Agregar a pantalla de inicio</b> y toca Agregar.</li>
+          <li>Abre <b>Cerrajero PR</b> desde el ícono nuevo y toca “Activar avisos”.</li></ol></div>`
+      : `<div class="aviso alerta"><strong>Este navegador no recibe avisos</strong>Ábrela en Chrome (Android) o agrégala a la pantalla de inicio (iPhone). Mientras tanto, la lista se actualiza sola si tienes la página abierta.</div>`;
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    c.innerHTML = `<div class="aviso alerta"><strong>🔕 Los avisos están bloqueados</strong>Actívalos en los ajustes del celular → Notificaciones → ${esIOS ? 'Cerrajero PR' : 'Chrome / este sitio'}.</div>`;
+    return;
+  }
+  if (Notification.permission === 'granted' && estado?.avisos) {
+    c.innerHTML = `<div class="aviso ok"><strong>🔔 Avisos activados</strong>Te va a sonar el celular cuando el bot necesite un precio, aunque tengas la app cerrada.
+      <div class="fila-botones"><button class="btn btn-borde" id="probar">Enviar aviso de prueba</button></div></div>`;
+    $('probar').onclick = async () => {
+      $('probar').disabled = true;
+      try { const r = await api('/prueba', { method:'POST' }); toast(r.enviados ? '📲 Aviso enviado. Debe sonar en unos segundos.' : 'No hay avisos activos'); }
+      catch (e) { toast(e.message); }
+      setTimeout(() => { const b = $('probar'); if (b) b.disabled = false; }, 4000);
+    };
+    return;
+  }
+  c.innerHTML = `<div class="aviso alerta"><strong>🔔 Activa los avisos</strong>Así te suena el celular cuando un cliente espera un precio, aunque no tengas la app abierta.
+    <div class="fila-botones"><button class="btn btn-acento" id="activar">Activar avisos</button></div></div>`;
+  $('activar').onclick = activarAvisos;
+}
+
+// ── Consultas ────────────────────────────────────────────────────────────────
+function tarjetaPendiente(c) {
+  return `<div class="consulta" id="${esc(c.id)}">
+    <div class="c-head"><span class="punto"></span><span class="espera" data-desde="${esc(c.creada_en)}">${fmtEspera(c.creada_en)}</span>
+      <span class="cliente">${esc(fmtTel(c.numero_cliente))}</span></div>
+    <div class="caso">${esc(c.resumen)}</div>
+    <div class="pregunta">${esc(c.pregunta)}</div>
+    <div class="chips">${MONTOS.map(m => `<button class="chip" data-monto="${m}" data-id="${esc(c.id)}">$${m}</button>`).join('')}</div>
+    <textarea data-id="${esc(c.id)}" placeholder="Ej.: Dile que son 90 con varilla. Si hay que trabajar la cerradura son 150.">${esc(borradores[c.id] || '')}</textarea>
+    <div class="fila-botones"><button class="btn btn-acento" data-enviar="${esc(c.id)}">Enviar respuesta</button></div>
+    <div class="rapidas">${RAPIDAS.map(t => `<button data-rapida="${esc(t)}" data-id="${esc(c.id)}">${esc(t)}</button>`).join('')}</div>
+  </div>`;
+}
+
+function render() {
+  const pend = consultas.filter(c => c.estado === 'pendiente');
+  const otras = consultas.filter(c => c.estado !== 'pendiente').slice(0, 10);
+  // No re-pintar mientras escribe en una tarjeta (perdería el foco)
+  const escribiendo = document.activeElement?.tagName === 'TEXTAREA';
+  if (!escribiendo) {
+    $('pendientes').innerHTML = pend.length ? pend.map(tarjetaPendiente).join('')
+      : '<div class="vacio"><span class="grande">✅</span>No hay clientes esperando un precio.</div>';
+  }
+  $('recientes').innerHTML = otras.length ? otras.map(c => `<div class="hecha ${c.estado}">
+      <div class="meta">${fmtHora(c.creada_en)} · ${c.estado === 'respondida' ? `Respondida (${esc(c.respondida_por)})` : 'Sin respuesta a tiempo'}</div>
+      <div>${esc(c.resumen)}</div>${c.respuesta ? `<div class="resp">💬 ${esc(c.respuesta)}</div>` : ''}</div>`).join('')
+    : '<div class="vacio">Todavía no hay consultas.</div>';
+  document.title = pend.length ? `(${pend.length}) Consultas — Tu Cerrajero PR` : 'Consultas — Tu Cerrajero PR';
+  enfocarHash();
+}
+
+function enfocarHash() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  const el = id && document.getElementById(id);
+  if (el && !el.classList.contains('foco')) {
+    el.classList.add('foco');
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+}
+
+function sonar() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .28, .56].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination); o.frequency.value = 880;
+      g.gain.setValueAtTime(.25, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .22);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .22);
+    });
+  } catch (_) {}
+  if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+}
+
+async function cargar() {
+  try {
+    consultas = await api('/consultas');
+    $('red').textContent = '● En línea';
+    $('red').style.color = 'var(--ok)';
+    const nuevas = consultas.filter(c => c.estado === 'pendiente' && !conocidas.has(c.id));
+    if (!primeraCarga && nuevas.length) sonar();
+    consultas.forEach(c => conocidas.add(c.id));
+    primeraCarga = false;
+    render();
+  } catch (e) {
+    if (e.message !== 'sin acceso') { $('red').textContent = '● Sin conexión'; $('red').style.color = 'var(--peligro)'; }
+  }
+}
+
+async function enviar(id, texto) {
+  texto = String(texto || '').trim();
+  if (!texto) { toast('Escribe la respuesta'); return; }
+  const btn = document.querySelector(`[data-enviar="${CSS.escape(id)}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    await api(`/consultas/${encodeURIComponent(id)}/responder`, { method:'POST', body:JSON.stringify({ respuesta:texto }) });
+    delete borradores[id];
+    document.activeElement?.blur();
+    toast('✅ Enviado. El bot se lo dice al cliente ahora mismo.');
+    if (location.hash.slice(1) === id) history.replaceState(null, '', location.pathname);
+    await cargar();
+  } catch (e) {
+    toast(e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar respuesta'; }
+  }
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.enviar) {
+    enviar(t.dataset.enviar, document.querySelector(`textarea[data-id="${CSS.escape(t.dataset.enviar)}"]`).value);
+  } else if (t.dataset.rapida) {
+    enviar(t.dataset.id, t.dataset.rapida);
+  } else if (t.dataset.monto) {
+    const ta = document.querySelector(`textarea[data-id="${CSS.escape(t.dataset.id)}"]`);
+    ta.value = `Dile que son ${t.dataset.monto} dólares.`;
+    borradores[t.dataset.id] = ta.value;
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+});
+document.addEventListener('input', e => { if (e.target.dataset?.id) borradores[e.target.dataset.id] = e.target.value; });
+
+setInterval(() => document.querySelectorAll('.espera').forEach(el => el.textContent = fmtEspera(el.dataset.desde)), 1000);
+setInterval(() => { if (!document.hidden) cargar(); }, 4000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
+window.addEventListener('hashchange', enfocarHash);
+
+async function iniciar() {
+  try { estado = await api('/estado'); } catch (_) { return; }
+  $('app').hidden = false;
+  // La lista tiene que funcionar aunque fallen los avisos (navegador sin soporte, etc.)
+  cargar();
+  if (soportaPush) {
+    try {
+      await navigator.serviceWorker.register('/dueno/sw.js', { scope:'/dueno/' });
+      navigator.serviceWorker.addEventListener('message', e => {
+        if (e.data?.tipo === 'abrir' && e.data.url) { location.hash = new URL(e.data.url, location.href).hash; }
+        cargar();
+      });
+      // Si el navegador renovó la suscripción, se vuelve a guardar
+      if (Notification.permission === 'granted') {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) { api('/suscripcion', { method:'POST', body:JSON.stringify(sub) }).catch(() => {}); estado.avisos = true; }
+      }
+    } catch (err) {
+      console.warn('Avisos no disponibles:', err);
+    }
+  }
+  pintarAvisos();
+}
+iniciar();
+</script>
+</body>
+</html>

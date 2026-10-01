@@ -5,9 +5,10 @@
 //  ------------------------------------------------------------------------------
 //  Cuando el bot no tiene precio para un caso:
 //   1. El agente llama a la herramienta consultar_dueno con un resumen breve.
-//   2. Aquí se crea la consulta y se manda un WhatsApp al dueño (CallMeBot) con
-//      el caso y un enlace /r/<token> para responder desde el celular. También
-//      se puede responder desde el Centro de mando.
+//   2. Aquí se crea la consulta y se manda una notificación push a la app del
+//      dueño (/dueno, ver dueno.js). Se responde desde esa app, desde el enlace
+//      /r/<token> o desde el Centro de mando. (El aviso por WhatsApp quedó
+//      desactivado por decisión del cliente, 2026-10-01.)
 //   3. El agente llama a esperar_respuesta_dueno en bucle: cada llamada espera
 //      hasta ~15 s. Entre una y otra el agente le habla al cliente ("deme otro
 //      momentito…"), así nunca hay más de ~20 s de silencio.
@@ -19,15 +20,13 @@
 const crypto = require('crypto');
 const { pool } = require('./db');
 const emitter = require('./events');
-const { enviarWhatsApp } = require('./whatsapp');
+const dueno = require('./dueno');
 
 const ESPERA_POR_LLAMADA_MS = 15_000;
 
 const AJUSTES_DEFECTO = {
   consulta_dueno: {
     activa: false,
-    whatsapp: '',            // número del dueño, ej. 17876650980
-    callmebot_apikey: '',
     espera_max_seg: 120,     // tiempo máximo con el cliente en espera
   },
 };
@@ -50,14 +49,9 @@ async function guardarAjuste(clave, valor) {
   return nuevo;
 }
 
-/** Versión para el panel: la apikey no viaja completa. */
 function ajustesPublicos(a) {
-  const k = a.callmebot_apikey || '';
   return {
     activa: Boolean(a.activa),
-    whatsapp: a.whatsapp || '',
-    apikey_configurada: Boolean(k),
-    apikey_vista: k ? `••••${k.slice(-3)}` : '',
     espera_max_seg: Number(a.espera_max_seg) || 120,
   };
 }
@@ -69,8 +63,6 @@ async function obtenerAjustesConsulta() {
 async function actualizarAjustesConsulta(cambios = {}) {
   const permitido = {};
   if ('activa' in cambios) permitido.activa = Boolean(cambios.activa);
-  if ('whatsapp' in cambios) permitido.whatsapp = String(cambios.whatsapp || '').replace(/[^\d+]/g, '');
-  if (cambios.callmebot_apikey) permitido.callmebot_apikey = String(cambios.callmebot_apikey).trim();
   if ('espera_max_seg' in cambios) {
     permitido.espera_max_seg = Math.min(300, Math.max(30, Number(cambios.espera_max_seg) || 120));
   }
@@ -100,7 +92,7 @@ function vista(f) {
     estado: f.estado,
     respuesta: f.respuesta,
     respondida_por: f.respondida_por,
-    whatsapp_ok: f.whatsapp_ok,
+    aviso_ok: f.whatsapp_ok,   // columna histórica: ahora = notificación push entregada
     creada_en: f.creada_en instanceof Date ? f.creada_en.toISOString() : f.creada_en,
     respondida_en: f.respondida_en instanceof Date ? f.respondida_en.toISOString() : f.respondida_en,
   };
@@ -124,23 +116,18 @@ async function crearConsulta({ resumen, pregunta, conversation_id, numero_client
   let consulta = rows[0];
   emitter.emit('consulta_nueva', vista(consulta));
 
-  const enlace = `${baseUrl}/r/${token}`;
-  const texto = [
-    '🔑 *CONSULTA DE PRECIO* — Tu Cerrajero Puerto Rico',
-    '',
-    '📞 Cliente esperando en la línea' + (numero_cliente ? ` (${numero_cliente})` : ''),
-    `📝 ${consulta.resumen}`,
-    `❓ ${consulta.pregunta}`,
-    '',
-    `👉 Responde aquí: ${enlace}`,
-  ].join('\n');
-  const r = await enviarWhatsApp(ajustes.whatsapp, ajustes.callmebot_apikey, texto);
-  console.log(`📱 Consulta ${id} → WhatsApp dueño: ${r.ok ? '✅' : `❌ ${r.status || r.error}`}`);
-  if (r.ok) {
+  const enviados = await dueno.notificar({
+    titulo: '📞 Cliente esperando un precio',
+    cuerpo: `${consulta.resumen}\n${consulta.pregunta}`,
+    url: `/dueno#${id}`,
+    tag: id,
+  }).catch(err => { console.error('❌ Aviso al dueño:', err.message); return 0; });
+  console.log(`📲 Consulta ${id} → app del dueño: ${enviados ? `✅ ${enviados} celular(es)` : '⚠️ sin celulares con avisos'}`);
+  if (enviados) {
     ({ rows: [consulta] } = await pool.query('UPDATE consultas SET whatsapp_ok = true WHERE id = $1 RETURNING *', [id]));
     emitter.emit('consulta_actualizada', vista(consulta));
   }
-  return { activa: true, consulta: vista(consulta), whatsapp_ok: r.ok };
+  return { activa: true, consulta: vista(consulta), avisados: enviados };
 }
 
 /**
@@ -178,7 +165,7 @@ async function esperarRespuesta(id) {
   return { estado: 'pendiente', segundos: segundos() };
 }
 
-/** Respuesta del dueño (desde el enlace de WhatsApp o desde el panel). */
+/** Respuesta del dueño (desde su app, el enlace /r/<token> o el panel). */
 async function responderConsulta({ id, token }, respuesta, por) {
   const texto = String(respuesta || '').trim().slice(0, 600);
   if (!texto) throw new Error('Escribe la respuesta');
@@ -201,6 +188,14 @@ async function consultaPorToken(token) {
 }
 
 async function listarConsultas(limite = 30) {
+  // Las que nadie siguió esperando (la llamada se cortó) se cierran solas
+  // pasado el tiempo máximo de espera, para que no queden como pendientes.
+  const { espera_max_seg } = await leerAjuste('consulta_dueno');
+  await pool.query(
+    `UPDATE consultas SET estado = 'expirada'
+      WHERE estado = 'pendiente' AND creada_en < NOW() - make_interval(secs => $1)`,
+    [Number(espera_max_seg) + 30]
+  );
   const { rows } = await pool.query('SELECT * FROM consultas ORDER BY creada_en DESC LIMIT $1', [Math.min(Number(limite) || 30, 200)]);
   return rows.map(vista);
 }

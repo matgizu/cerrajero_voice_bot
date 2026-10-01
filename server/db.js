@@ -138,6 +138,17 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS consultas_creada_idx ON consultas (creada_en DESC);
 
+    -- App del dueño (/dueno): un registro por celular conectado con el enlace
+    -- de acceso. suscripcion = Web Push del navegador (null si no activó avisos).
+    CREATE TABLE IF NOT EXISTS dueno_dispositivos (
+      id          SERIAL PRIMARY KEY,
+      sesion      TEXT        NOT NULL UNIQUE,
+      suscripcion JSONB,
+      nombre      TEXT        NOT NULL DEFAULT '',
+      creado_en   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ultimo_uso  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS precios_apertura_marca (
       id               SERIAL PRIMARY KEY,
       marca            TEXT          NOT NULL UNIQUE,

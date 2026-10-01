@@ -1,0 +1,15 @@
+{
+  "name": "Tu Cerrajero PR — Dueño",
+  "short_name": "Cerrajero PR",
+  "description": "Consultas de precio del bot mientras el cliente espera en la línea",
+  "start_url": "/dueno/",
+  "scope": "/dueno/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "lang": "es",
+  "icons": [
+    { "src": "/dueno/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/dueno/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

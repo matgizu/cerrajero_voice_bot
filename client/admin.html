@@ -104,7 +104,7 @@
       <div class="panel-head">
         <div class="prueba-titulo">
           <strong>🧑‍💼 Consulta de precio al dueño</strong>
-          <span class="panel-hint">Si el bot no tiene el precio, le pregunta al dueño por WhatsApp mientras el cliente espera en la línea</span>
+          <span class="panel-hint">Si el bot no tiene el precio, le avisa al dueño en su celular y espera su respuesta con el cliente en la línea</span>
         </div>
         <label class="switch" title="Prender / apagar">
           <input type="checkbox" id="consulta-activa">
@@ -113,13 +113,7 @@
         </label>
       </div>
       <div class="consulta-config">
-        <label>WhatsApp del dueño
-          <input type="tel" id="consulta-whatsapp" placeholder="Ej. 17876650980 (con código de país)">
-        </label>
-        <label>Clave de CallMeBot
-          <input type="password" id="consulta-apikey" placeholder="Pegar la clave" autocomplete="off">
-        </label>
-        <label>Espera máxima
+        <label>Espera máxima del cliente en línea
           <select id="consulta-espera">
             <option value="60">1 minuto</option>
             <option value="90">1 min 30 s</option>
@@ -127,11 +121,31 @@
             <option value="180">3 minutos</option>
           </select>
         </label>
-        <button class="btn btn-primary" id="consulta-guardar">Guardar</button>
+        <button class="btn btn-ghost" id="consulta-guardar">Guardar</button>
+      </div>
+
+      <div class="dueno-app">
+        <div class="dueno-app-head">
+          <strong>📲 App del dueño</strong>
+          <span class="panel-hint" id="dueno-dispositivos">Cargando…</span>
+        </div>
+        <p class="panel-hint">
+          El dueño responde desde su celular en una página propia y le <b>suena una notificación</b> cuando el bot necesita un precio, aunque tenga la app cerrada.
+          Genera el enlace de acceso y ábrelo en su celular (Android: Chrome · iPhone: Safari → Compartir → <i>Agregar a pantalla de inicio</i>). Luego, en la app, toca <b>Activar avisos</b>.
+        </p>
+        <div class="dueno-acciones">
+          <button class="btn btn-primary" id="dueno-enlace">🔗 Generar enlace de acceso</button>
+          <button class="btn btn-ghost" id="dueno-prueba">🔔 Enviar aviso de prueba</button>
+          <button class="btn btn-ghost" id="dueno-desconectar">Desconectar celulares</button>
+        </div>
+        <div class="dueno-link" id="dueno-link" hidden>
+          <input type="text" id="dueno-link-url" readonly>
+          <button class="btn btn-primary" id="dueno-link-copiar">Copiar</button>
+          <button class="btn btn-ghost" id="dueno-link-compartir">Compartir</button>
+        </div>
       </div>
       <div class="panel-hint consulta-ayuda">
-        Apagada: el bot le dice al cliente que lo llaman en breve para confirmar el costo.
-        Para activar el WhatsApp, el dueño manda una vez el mensaje de activación a CallMeBot desde su WhatsApp (callmebot.com) y pega aquí la clave que le responden.
+        Apagada: el bot le dice al cliente que lo llaman en breve para confirmar el costo. Prendida: el bot pone al cliente en espera, avisa al dueño y le dice el precio en cuanto responda (también se puede responder aquí abajo).
       </div>
       <div id="consultas-lista" class="consultas-lista"></div>
     </div>
