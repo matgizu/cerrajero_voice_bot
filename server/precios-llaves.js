@@ -93,7 +93,31 @@ function resolverModelo(marcaKey, modelo) {
   const candidatos = Object.keys(modelos)
     .filter(k => m.startsWith(k) || k.startsWith(m))
     .sort((a, b) => b.length - a.length);
-  return candidatos[0] || m; // m igual sirve para las filas manuales
+  if (candidatos[0]) return candidatos[0];
+  // Acento boricua / transcripción: "Telcel" → tercel, "Corola" → corolla.
+  // Se acepta el modelo más parecido si está a 1–2 letras de distancia.
+  const parecido = Object.keys(modelos)
+    .map(k => ({ k, d: distancia(m, k) }))
+    .filter(x => m.length >= 4 && x.d <= (m.length >= 6 ? 2 : 1))
+    .sort((a, b) => a.d - b.d)[0];
+  return parecido?.k || m; // m igual sirve para las filas manuales
+}
+
+/** Distancia de edición (Levenshtein), con L↔R contando como media letra. */
+function distancia(a, b) {
+  const fila = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = fila[0];
+    fila[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = fila[j];
+      const lr = (a[i - 1] === 'l' && b[j - 1] === 'r') || (a[i - 1] === 'r' && b[j - 1] === 'l');
+      const costo = a[i - 1] === b[j - 1] ? 0 : lr ? 0.5 : 1;
+      fila[j] = Math.min(fila[j] + 1, fila[j - 1] + 1, prev + costo);
+      prev = tmp;
+    }
+  }
+  return fila[b.length];
 }
 
 function parseAnio(anio) {
