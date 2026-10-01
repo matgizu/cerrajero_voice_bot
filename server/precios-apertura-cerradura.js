@@ -28,7 +28,7 @@ const ZONA_5_PUEBLOS = 'San Juan, Guaynabo, Bayamón, Carolina o Cataño';
 const WHATSAPP_FOTO_SMART_LOCK = '787-665-0980';
 
 const TEXTO_CONFIRMA_CERRAJERO =
-  'Ese precio se lo confirmamos nosotros mismos — en un par de minutos le llama uno de nuestros cerrajeros para darle el número exacto.';
+  'Ese precio te lo confirmamos nosotros mismos: en un par de minutos te llama uno de nuestros cerrajeros para darte el número exacto.';
 
 /** Hora actual en Puerto Rico (0-23), mismo criterio que el saludo del agente (ver gemini.js). */
 function horaPR() {
@@ -115,12 +115,12 @@ function cotizarAperturaCerradura(tipoCerradura) {
     case 'perfil_europeo_fuera_metro':
       return {
         tipo: tipoCerradura, precio: null, es_premium: true, confirma_cerrajero: true,
-        texto: 'Listo, déjeme hacer una validación y nosotros se lo confirmamos. Lo llamamos en breve.',
+        texto: 'Listo, déjame hacer una validación y nosotros te lo confirmamos. Te llamamos en breve.',
       };
     case 'cerradura_electronica':
       return {
         tipo: tipoCerradura, precio: null, es_premium: false, confirma_cerrajero: true,
-        texto: `Para cerradura electrónica necesitamos una foto para cotizarle exacto — nos la puede mandar por WhatsApp al ${WHATSAPP_FOTO_SMART_LOCK}, y en un par de minutos le confirmamos.`,
+        texto: `Para cerradura electrónica necesitamos una foto para cotizarte exacto: nos la puedes mandar por WhatsApp al ${WHATSAPP_FOTO_SMART_LOCK}, y en un par de minutos te confirmamos.`,
       };
     // Cliente 2026-09-30: sencillo o doble cilindro da igual para la apertura.
     // Abre y cierra solo con llave: el agente pregunta antes si hay otra llave
