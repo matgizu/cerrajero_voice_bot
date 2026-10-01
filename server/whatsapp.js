@@ -39,7 +39,7 @@ async function notificarCerrajero(cerrajero, servicio) {
   ].join('');
 
   const texto = [
-    `${emoji} *NUEVO SERVICIO* — Cerrajería Express`,
+    `${emoji} *NUEVO SERVICIO* — Tu Cerrajero Puerto Rico`,
     ``,
     `📋 ID: ${servicio.id}`,
     `👤 Cliente: ${servicio.nombre}`,
