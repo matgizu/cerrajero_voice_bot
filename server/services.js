@@ -10,6 +10,20 @@ const emitter = require('./events');
 
 const ESTADOS_VALIDOS = ['pendiente', 'en_camino', 'completado', 'cancelado'];
 
+/**
+ * Normaliza el teléfono del cliente. Puerto Rico/EE.UU.: 10 dígitos (o 11 con
+ * el 1 delante). Internacional: con "+" y 11–15 dígitos. Si no cuadra devuelve
+ * null para que el agente lo vuelva a pedir (en la prueba guardó "527555555").
+ */
+function normalizarTelefono(telefono) {
+  const txt = String(telefono || '').trim();
+  const d = txt.replace(/\D/g, '');
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11 && d.startsWith('1')) return `${d.slice(1, 4)}-${d.slice(4, 7)}-${d.slice(7)}`;
+  if (txt.startsWith('+') && d.length >= 11 && d.length <= 15) return `+${d}`;
+  return null;
+}
+
 function rowToServicio(row) {
   return {
     id:                      row.id,
@@ -46,6 +60,15 @@ async function guardarServicio(datos) {
 
   if (!nombre || !telefono || !ubicacion || !tipo_servicio) {
     return { exito: false, mensaje: 'Datos incompletos: se requieren nombre, teléfono, ubicación y tipo de servicio.' };
+  }
+
+  const telefonoOk = normalizarTelefono(telefono);
+  if (!telefonoOk) {
+    const n = String(telefono).replace(/\D/g, '').length;
+    return {
+      exito: false,
+      mensaje: `El teléfono "${telefono}" tiene ${n} dígitos y debe tener 10 (ej. 787-555-1234). NO se guardó el servicio. Pídele al cliente con amabilidad que te lo repita completo ("Perdone, creo que se me escapó un número, ¿me repite el teléfono completo, por favor?"), repíteselo para confirmar y vuelve a llamar a guardar_servicio.`,
+    };
   }
 
   const id             = `SRV-${Date.now().toString(36).toUpperCase()}`;
@@ -94,7 +117,7 @@ async function guardarServicio(datos) {
     [
       id,
       nombre.trim(),
-      telefono.trim(),
+      telefonoOk,
       ubicacion.trim(),
       tipo_servicio,
       esEmergencia,
