@@ -60,6 +60,29 @@
   .mic.grabando { background:var(--peligro); border-color:var(--peligro); color:#fff; animation:pulso 1.2s infinite; }
   .mic.procesando { background:var(--card2); border-color:var(--borde); color:var(--tenue); }
   @keyframes pulso { 0%,100% { box-shadow:0 0 0 0 rgba(248,81,73,.55); } 50% { box-shadow:0 0 0 10px rgba(248,81,73,0); } }
+  /* Pantalla de grabación por voz */
+  .voz { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; }
+  .voz-caja { width:100%; max-width:620px; background:var(--card); border-top:1px solid var(--borde); border-radius:20px 20px 0 0;
+    padding:20px 18px calc(22px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:14px; }
+  .voz-caso { color:var(--tenue); font-size:14px; line-height:1.4; max-height:4.2em; overflow:hidden; }
+  .voz-estado { display:flex; align-items:center; justify-content:center; gap:10px; font-size:18px; font-weight:800; }
+  .voz-punto { width:14px; height:14px; border-radius:50%; background:var(--tenue); }
+  .voz.grabando .voz-punto { background:var(--peligro); animation:latido 1s infinite; }
+  .voz.pausado .voz-punto { background:var(--alerta); }
+  .voz-tiempo { text-align:center; font-size:46px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:1px; }
+  .voz.grabando .voz-tiempo { color:var(--peligro); }
+  .voz-barras { display:flex; align-items:center; justify-content:center; gap:4px; height:64px; }
+  .voz-barras span { width:6px; height:6px; border-radius:4px; background:var(--peligro); transition:height .08s linear; }
+  .voz.pausado .voz-barras span, .voz.preparando .voz-barras span { background:var(--borde); }
+  .voz-botones { display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:10px; }
+  .voz-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:78px;
+    border-radius:16px; font-size:28px; font-weight:800; color:var(--texto); background:var(--card2); border:1px solid var(--borde); }
+  .voz-btn small { font-size:14px; font-weight:700; }
+  .voz-btn.listo { background:var(--ok); border-color:var(--ok); color:#000; }
+  .voz-btn:disabled { opacity:.45; }
+  .voz-titulo2 { font-size:17px; font-weight:800; }
+  .voz textarea { min-height:110px; font-size:17px; }
+  .voz-cargando { text-align:center; padding:28px 0; font-size:18px; font-weight:700; color:var(--tenue); }
   .nota-voz { font-size:13px; color:var(--tenue); margin:-6px 0 10px; text-align:center; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .chip { background:var(--card2); color:var(--texto); border:1px solid var(--borde); padding:8px 12px; border-radius:20px; font-size:14px; font-weight:600; }
@@ -96,6 +119,32 @@
 </main>
 <div class="toast" id="toast" hidden></div>
 <div class="ptr" id="ptr"><span>↓</span></div>
+
+<div class="voz" id="voz" hidden>
+  <div class="voz-caja">
+    <div class="voz-caso" id="voz-caso"></div>
+    <div id="voz-grabar">
+      <div class="voz-estado"><span class="voz-punto"></span><span id="voz-titulo">Preparando el micrófono…</span></div>
+      <div class="voz-tiempo" id="voz-tiempo">0:00</div>
+      <div class="voz-barras" id="voz-barras"></div>
+      <div class="voz-botones">
+        <button class="voz-btn" id="voz-cancelar">✖<small>Cancelar</small></button>
+        <button class="voz-btn" id="voz-pausa" disabled>⏸<small>Pausar</small></button>
+        <button class="voz-btn listo" id="voz-listo" disabled>✓<small>Listo</small></button>
+      </div>
+    </div>
+    <div id="voz-procesando" class="voz-cargando" hidden>⏳ Escribiendo lo que dijiste…</div>
+    <div id="voz-revisar" hidden>
+      <div class="voz-titulo2">Revisa y envía</div>
+      <textarea id="voz-texto"></textarea>
+      <div class="fila-botones"><button class="btn btn-acento" id="voz-enviar">Enviar respuesta</button></div>
+      <div class="fila-botones">
+        <button class="btn btn-borde" id="voz-otra">🎤 Grabar de nuevo</button>
+        <button class="btn btn-borde" id="voz-cerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -278,7 +327,7 @@ async function cargar() {
 
 async function enviar(id, texto) {
   texto = String(texto || '').trim();
-  if (!texto) { toast('Escribe la respuesta'); return; }
+  if (!texto) { toast('Escribe la respuesta'); return false; }
   const btn = document.querySelector(`[data-enviar="${CSS.escape(id)}"]`);
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
@@ -288,96 +337,200 @@ async function enviar(id, texto) {
     toast('✅ Enviado. El bot se lo dice al cliente ahora mismo.');
     if (location.hash.slice(1) === id) history.replaceState(null, '', location.pathname);
     await cargar();
+    return true;
   } catch (e) {
     toast(e.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Enviar respuesta'; }
+    return false;
   }
 }
 
 // ── Respuesta por voz ────────────────────────────────────────────────────────
-// Graba con el micrófono y el servidor transcribe (ElevenLabs). El texto queda
-// en el cuadro para revisarlo y tocar Enviar.
-let grabacion = null;   // { id, recorder, chunks, stream, t0, timer, boton }
-const MAX_SEG_VOZ = 45;
+// Pantalla propia (encima de todo, no se repinta con la lista): muestra que está
+// grabando (punto rojo, cronómetro y barras que se mueven con la voz), con
+// Pausar / Cancelar / Listo. Al terminar, el servidor transcribe (ElevenLabs) y
+// el texto se revisa y se envía desde la misma pantalla.
+let grabacion = null;   // existe desde que se toca 🎤 hasta que se cierra la pantalla
+const MAX_SEG_VOZ = 60;
+const N_BARRAS = 24;
+$('voz-barras').innerHTML = '<span></span>'.repeat(N_BARRAS);
 
-function pintarMic(boton, estado, extra = '') {
-  boton.classList.remove('grabando', 'procesando');
-  if (estado) boton.classList.add(estado);
-  const [ico, txt] = {
-    '': ['🎤', 'Responder por voz'],
-    grabando: ['⏹', `Grabando ${extra} · toca para terminar`],
-    procesando: ['⏳', 'Escribiendo lo que dijiste…'],
-  }[estado];
-  boton.querySelector('.ico').textContent = ico;
-  boton.querySelector('.txt').textContent = txt;
+function vozVista(vista, estado = '') {
+  $('voz-grabar').hidden = vista !== 'grabar';
+  $('voz-procesando').hidden = vista !== 'procesando';
+  $('voz-revisar').hidden = vista !== 'revisar';
+  $('voz').className = `voz ${estado}`;
 }
 
-async function empezarGrabacion(id, boton) {
+function segundosGrabados() {
+  if (!grabacion?.t0) return 0;
+  const corriendo = grabacion.pausadoDesde ? grabacion.pausadoDesde - grabacion.t0 : Date.now() - grabacion.t0;
+  return Math.max(0, Math.floor((corriendo - grabacion.pausado) / 1000));
+}
+
+function abrirVoz(id) {
+  if (grabacion) return;
+  const c = consultas.find(x => x.id === id);
+  grabacion = { id };                       // bloquea el repintado desde ya
+  $('voz-caso').textContent = c ? `${c.resumen} — ${c.pregunta}` : '';
+  $('voz').hidden = false;
+  iniciarMic();
+}
+
+async function iniciarMic() {
+  vozVista('grabar', 'preparando');
+  $('voz-titulo').textContent = 'Preparando el micrófono…';
+  $('voz-tiempo').textContent = '0:00';
+  $('voz-pausa').disabled = true; $('voz-listo').disabled = true;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-    toast('Este navegador no permite grabar. Usa el teclado o el dictado del teclado.', 4000);
-    return;
+    toast('Este celular no permite grabar desde la app. Usa el cuadro de texto.', 4000);
+    return cerrarVoz();
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    if (!grabacion) { stream.getTracks().forEach(t => t.stop()); return; }   // canceló mientras pedía permiso
     const tipo = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported?.(t)) || '';
     const recorder = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
-    grabacion = { id, recorder, chunks: [], stream, t0: Date.now(), boton };
+    Object.assign(grabacion, { recorder, stream, chunks: [], t0: Date.now(), pausado: 0, pausadoDesde: null, cancelado: false });
     recorder.ondataavailable = e => { if (e.data.size) grabacion?.chunks.push(e.data); };
-    recorder.onstop = () => transcribir();
-    recorder.start();
+    recorder.onstop = () => { if (grabacion && !grabacion.cancelado) transcribir(); };
+    recorder.start(250);
+    medirVoz(stream);
     if (navigator.vibrate) navigator.vibrate(60);
-    pintarMic(boton, 'grabando', '0:00');
+    vozVista('grabar', 'grabando');
+    $('voz-titulo').textContent = 'Grabando… habla ahora';
+    $('voz-pausa').disabled = typeof recorder.pause !== 'function';
+    $('voz-listo').disabled = false;
     grabacion.timer = setInterval(() => {
-      const seg = Math.round((Date.now() - grabacion.t0) / 1000);
-      pintarMic(boton, 'grabando', `0:${String(seg).padStart(2, '0')}`);
+      const seg = segundosGrabados();
+      $('voz-tiempo').textContent = `${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')}`;
       if (seg >= MAX_SEG_VOZ) terminarGrabacion();
-    }, 500);
+    }, 250);
   } catch (err) {
-    grabacion = null;
-    toast(err.name === 'NotAllowedError' ? 'Permite el micrófono para responder por voz (ajustes del navegador).' : 'No se pudo usar el micrófono.', 4500);
+    toast(err.name === 'NotAllowedError' ? 'Permite el micrófono para responder por voz (ajustes del celular).' : 'No se pudo usar el micrófono.', 4500);
+    cerrarVoz();
   }
+}
+
+/** Barras que se mueven con el volumen de la voz (para que se vea que escucha). */
+function medirVoz(stream) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const analizador = ctx.createAnalyser();
+    analizador.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(analizador);
+    const datos = new Uint8Array(analizador.fftSize);
+    const barras = [...$('voz-barras').children];
+    // Forma de campana (más altas al centro) y un poco de variación por barra
+    const forma = barras.map((_, i) => 0.35 + 0.65 * Math.sin(Math.PI * (i + 0.5) / barras.length));
+    let nivel = 0;
+    grabacion.audioCtx = ctx;
+    const pintar = () => {
+      if (!grabacion?.audioCtx) return;
+      analizador.getByteTimeDomainData(datos);
+      let suma = 0;
+      for (const x of datos) suma += ((x - 128) / 128) ** 2;
+      const rms = Math.sqrt(suma / datos.length);
+      const activo = grabacion.recorder?.state === 'recording';
+      nivel = nivel * 0.6 + (activo ? Math.min(1, rms * 4) : 0) * 0.4;   // suavizado
+      barras.forEach((b, i) => {
+        const v = nivel * forma[i] * (0.75 + Math.random() * 0.5);
+        b.style.height = `${6 + Math.round(Math.min(1, v) * 58)}px`;
+      });
+      grabacion.raf = requestAnimationFrame(pintar);
+    };
+    pintar();
+  } catch (_) { /* sin barras, la grabación sigue */ }
+}
+
+function pausarOSeguir() {
+  const r = grabacion?.recorder;
+  if (!r) return;
+  if (r.state === 'recording') {
+    r.pause();
+    grabacion.pausadoDesde = Date.now();
+    vozVista('grabar', 'pausado');
+    $('voz-titulo').textContent = 'En pausa';
+    $('voz-pausa').innerHTML = '▶<small>Seguir</small>';
+  } else if (r.state === 'paused') {
+    grabacion.pausado += Date.now() - grabacion.pausadoDesde;
+    grabacion.pausadoDesde = null;
+    r.resume();
+    vozVista('grabar', 'grabando');
+    $('voz-titulo').textContent = 'Grabando… habla ahora';
+    $('voz-pausa').innerHTML = '⏸<small>Pausar</small>';
+  }
+}
+
+function soltarMic() {
+  if (!grabacion) return;
+  clearInterval(grabacion.timer);
+  cancelAnimationFrame(grabacion.raf);
+  grabacion.stream?.getTracks().forEach(t => t.stop());
+  grabacion.audioCtx?.close().catch(() => {});
+  grabacion.audioCtx = null;
+  $('voz-pausa').innerHTML = '⏸<small>Pausar</small>';
 }
 
 function terminarGrabacion() {
-  if (!grabacion || grabacion.recorder.state !== 'recording') return;
-  clearInterval(grabacion.timer);
-  pintarMic(grabacion.boton, 'procesando');
-  grabacion.recorder.stop();
-  grabacion.stream.getTracks().forEach(t => t.stop());
+  const r = grabacion?.recorder;
+  if (!r || r.state === 'inactive') return;
+  if (grabacion.pausadoDesde) { grabacion.pausado += Date.now() - grabacion.pausadoDesde; grabacion.pausadoDesde = null; }
+  vozVista('procesando');
+  soltarMic();
+  r.stop();   // → onstop → transcribir()
 }
 
 async function transcribir() {
-  const { id, chunks, recorder, boton } = grabacion;
+  const { recorder, chunks } = grabacion;
   const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
   try {
-    if (blob.size < 1500) throw new Error('No se escuchó nada, intenta otra vez.');
+    if (blob.size < 1500) throw new Error('No se escuchó nada. Intenta otra vez.');
     const r = await fetch('/dueno/api/transcribir', { method:'POST', headers:{ 'Content-Type': blob.type }, body: blob });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'No se pudo transcribir');
-    if (!d.texto) throw new Error('No se entendió, intenta otra vez.');
-    const ta = document.querySelector(`textarea[data-id="${CSS.escape(id)}"]`);
-    if (ta) {
-      ta.value = d.texto;
-      borradores[id] = d.texto;
-    }
-    const enviar = document.querySelector(`[data-enviar="${CSS.escape(id)}"]`);
-    enviar?.scrollIntoView({ behavior:'smooth', block:'center' });
-    toast('✍️ Revisa el texto y toca “Enviar respuesta”');
+    if (!d.texto) throw new Error('No se entendió. Intenta otra vez.');
+    $('voz-texto').value = d.texto;
+    vozVista('revisar');
   } catch (err) {
     toast(err.message, 3500);
-  } finally {
-    pintarMic(boton, '');
-    grabacion = null;
+    $('voz-texto').value = '';
+    vozVista('revisar');
   }
 }
 
+function cerrarVoz() {
+  if (grabacion) {
+    grabacion.cancelado = true;
+    soltarMic();
+    if (grabacion.recorder && grabacion.recorder.state !== 'inactive') grabacion.recorder.stop();
+    // Lo transcrito se guarda como borrador en la tarjeta
+    const texto = $('voz-texto').value.trim();
+    if (texto && $('voz-revisar').hidden === false) borradores[grabacion.id] = texto;
+  }
+  grabacion = null;
+  $('voz').hidden = true;
+  $('voz-texto').value = '';
+  render();
+}
+
+$('voz-cancelar').onclick = () => { $('voz-texto').value = ''; cerrarVoz(); };
+$('voz-pausa').onclick = pausarOSeguir;
+$('voz-listo').onclick = terminarGrabacion;
+$('voz-otra').onclick = () => { if (!grabacion) return; soltarMic(); Object.assign(grabacion, { recorder: null, chunks: [] }); iniciarMic(); };
+$('voz-cerrar').onclick = cerrarVoz;
+$('voz-enviar').onclick = async () => {
+  const id = grabacion?.id, texto = $('voz-texto').value;
+  if (!id) return;
+  $('voz-enviar').disabled = true;
+  const ok = await enviar(id, texto);
+  $('voz-enviar').disabled = false;
+  if (ok) { $('voz-texto').value = ''; cerrarVoz(); }
+};
+
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.mic) {
-    if (grabacion?.id === t.dataset.mic) terminarGrabacion();
-    else if (!grabacion) empezarGrabacion(t.dataset.mic, t);
-    return;
-  }
+  if (t.dataset.mic) { abrirVoz(t.dataset.mic); return; }
   if (t.dataset.enviar) {
     enviar(t.dataset.enviar, document.querySelector(`textarea[data-id="${CSS.escape(t.dataset.enviar)}"]`).value);
   } else if (t.dataset.rapida) {
@@ -416,7 +569,7 @@ window.addEventListener('hashchange', enfocarHash);
   };
   window.addEventListener('touchstart', e => {
     const enCampo = e.target?.closest?.('textarea, input');
-    y0 = (!recargando && !enCampo && window.scrollY <= 0 && e.touches.length === 1) ? e.touches[0].clientY : null;
+    y0 = (!recargando && !enCampo && !grabacion && window.scrollY <= 0 && e.touches.length === 1) ? e.touches[0].clientY : null;
     dist = 0;
   }, { passive: true });
   window.addEventListener('touchmove', e => {
