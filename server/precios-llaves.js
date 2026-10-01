@@ -255,9 +255,18 @@ function siguientePrecio(op, precioActual) {
  */
 function cotizarLlave(p = {}) {
   const { marca, modelo, anio, servicio } = p;
+  // Sin precio: el webhook decide si se consulta al dueño o se promete llamada.
+  const contexto = () => [
+    `Llave de carro (${{ todas_perdidas: 'llave nueva, no tiene ninguna', copia: 'copia, tiene una que funciona', programar: 'solo programar' }[servicio] || 'llave'})`,
+    [marca, modelo, anio].filter(Boolean).join(' '),
+    p.prende_con_boton === true || p.prende_con_boton === 'true' ? 'prende con botón' : '',
+    p.tiene_botones === true || p.tiene_botones === 'true' ? 'llave con botones' : '',
+    p.sale_como_navaja === true || p.sale_como_navaja === 'true' ? 'tipo navaja' : '',
+  ].filter(Boolean).join(' · ');
   const confirma = texto => ({
-    exito: true, confirma_cerrajero: true, precio: null, texto,
-    instrucciones: 'No inventes un precio. Toma los datos y guarda el servicio; el cerrajero llama a confirmar.',
+    exito: true, confirma_cerrajero: true, sin_precio: true, precio: null, texto,
+    contexto: contexto(),
+    instrucciones: 'No inventes un precio.',
   });
   const pregunta = (texto, parametro) => ({
     exito: true, necesita: parametro, texto,
@@ -285,6 +294,10 @@ function cotizarLlave(p = {}) {
   const anioMax = new Date().getFullYear() + 1;
   if (anioN < 1950 || anioN > anioMax) {
     return pregunta('Perdone, no le escuché bien el año. Déjeme saber de qué año es el carro.', 'anio');
+  }
+  // Cliente 2026-10-01: carros de 1998 o antes → precio específico por el técnico/dueño.
+  if (anioN <= 1998) {
+    return confirma(`Para un carro del ${anioN} el precio se lo da el técnico específicamente.`);
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
   const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };

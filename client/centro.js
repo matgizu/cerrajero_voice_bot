@@ -277,6 +277,22 @@
       renderActivas();
       setTimeout(() => { cargarResumen(); cargarHistorial(); }, 1500);
     });
+    es.addEventListener('consulta_nueva', e => {
+      consultas.unshift(JSON.parse(e.data));
+      renderConsultas();
+      sonar();
+      if (typeof showToast === 'function') showToast('🧑‍💼 El bot está consultando un precio — el cliente espera en la línea', 'info');
+    });
+    es.addEventListener('consulta_actualizada', e => {
+      const c = JSON.parse(e.data);
+      const i = consultas.findIndex(x => x.id === c.id);
+      if (i >= 0) consultas[i] = c; else consultas.unshift(c);
+      renderConsultas();
+    });
+    es.addEventListener('ajustes_actualizados', e => {
+      const d = JSON.parse(e.data);
+      if (d.consulta_dueno) pintarAjustesConsulta(d.consulta_dueno);
+    });
     es.addEventListener('llamada_historial', e => {
       const l = JSON.parse(e.data);
       const i = historial.findIndex(x => x.id === l.id);
@@ -334,6 +350,101 @@
     setTimeout(() => { boton.disabled = false; boton.innerHTML = original; }, 15_000);
   }
 
+  // ── Consulta de precio al dueño ─────────────────────────────────────────────
+  let consultas = [];
+
+  function pintarAjustesConsulta(a) {
+    $('consulta-activa').checked = a.activa;
+    $('consulta-estado').textContent = a.activa ? 'Prendida' : 'Apagada';
+    $('consulta-estado').classList.toggle('on', a.activa);
+    if (document.activeElement !== $('consulta-whatsapp')) $('consulta-whatsapp').value = a.whatsapp || '';
+    $('consulta-apikey').placeholder = a.apikey_configurada ? `Guardada (${a.apikey_vista}) — pega otra para cambiarla` : 'Pegar la clave';
+    $('consulta-espera').value = String(a.espera_max_seg || 120);
+  }
+
+  function renderConsultas() {
+    const cont = $('consultas-lista');
+    if (!consultas.length) { cont.innerHTML = ''; return; }
+    const etiqueta = { pendiente: ['⏳ Esperando respuesta', 'chip-alerta'], respondida: ['✅ Respondida', 'chip-ok'], expirada: ['⏱️ Sin respuesta a tiempo', ''] };
+    cont.innerHTML = consultas.slice(0, 8).map(c => {
+      const [txt, clase] = etiqueta[c.estado] || [c.estado, ''];
+      return `<div class="consulta ${c.estado}" data-id="${esc(c.id)}">
+        <div class="consulta-head">
+          <span class="chip ${clase}">${txt}</span>
+          <span class="panel-hint">${fmtFechaHora(c.creada_en)}${c.numero_cliente ? ` · ${fmtTelefono(c.numero_cliente)}` : ''}${c.whatsapp_ok ? ' · WhatsApp enviado' : ' · <span style="color:var(--warning)">WhatsApp no enviado</span>'}</span>
+        </div>
+        <div class="consulta-caso">${esc(c.resumen)}</div>
+        <div class="consulta-pregunta">❓ ${esc(c.pregunta)}</div>
+        ${c.estado === 'respondida'
+          ? `<div class="consulta-respuesta">💬 ${esc(c.respuesta)} <span class="panel-hint">(${esc(c.respondida_por)})</span></div>`
+          : `<div class="consulta-responder">
+               <input type="text" placeholder="Escribe lo que el bot le debe decir…" data-resp="${esc(c.id)}">
+               <button class="btn btn-primary" data-enviar="${esc(c.id)}">Responder</button>
+             </div>`}
+      </div>`;
+    }).join('');
+    cont.querySelectorAll('[data-enviar]').forEach(b => b.addEventListener('click', () => responderConsulta(b.dataset.enviar)));
+    cont.querySelectorAll('[data-resp]').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') responderConsulta(i.dataset.resp); }));
+  }
+
+  async function cargarConsultas() {
+    try {
+      const d = await (await fetch('/api/centro/consulta-dueno')).json();
+      pintarAjustesConsulta(d.ajustes);
+      consultas = d.consultas || [];
+      renderConsultas();
+    } catch (_) {}
+  }
+
+  async function guardarAjustesConsulta(cambios) {
+    try {
+      const r = await fetch('/api/centro/consulta-dueno', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios),
+      });
+      if (!r.ok) throw new Error();
+      pintarAjustesConsulta(await r.json());
+      return true;
+    } catch (_) {
+      if (typeof showToast === 'function') showToast('No se pudo guardar', 'error');
+      return false;
+    }
+  }
+
+  async function responderConsulta(id) {
+    const input = document.querySelector(`[data-resp="${CSS.escape(id)}"]`);
+    const respuesta = input?.value.trim();
+    if (!respuesta) return;
+    try {
+      const r = await fetch(`/api/centro/consultas/${encodeURIComponent(id)}/responder`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ respuesta }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      if (typeof showToast === 'function') showToast('✅ Respuesta enviada al bot', 'info');
+    } catch (err) {
+      if (typeof showToast === 'function') showToast(err.message || 'No se pudo responder', 'error');
+    }
+  }
+
+  $('consulta-activa').addEventListener('change', async e => {
+    const activa = e.target.checked;
+    if (activa && !$('consulta-whatsapp').value.trim()) {
+      if (typeof showToast === 'function') showToast('Pon el WhatsApp del dueño. Mientras tanto se puede responder desde aquí.', 'info');
+    }
+    if (await guardarAjustesConsulta({ activa }) && typeof showToast === 'function') {
+      showToast(activa ? '🧑‍💼 Consulta al dueño PRENDIDA' : 'Consulta al dueño apagada: el bot promete llamar en breve', 'info');
+    }
+  });
+  $('consulta-guardar').addEventListener('click', async () => {
+    const cambios = { whatsapp: $('consulta-whatsapp').value, espera_max_seg: Number($('consulta-espera').value) };
+    const k = $('consulta-apikey').value.trim();
+    if (k) cambios.callmebot_apikey = k;
+    if (await guardarAjustesConsulta(cambios)) {
+      $('consulta-apikey').value = '';
+      if (typeof showToast === 'function') showToast('Configuración guardada', 'info');
+    }
+  });
+
   // ── Controles ───────────────────────────────────────────────────────────────
   $('historial-buscar').addEventListener('input', e => { filtroHistorial = e.target.value.trim(); renderHistorial(); });
   $('historial-recargar').addEventListener('click', () => { cargarResumen(); cargarHistorial(); });
@@ -341,5 +452,6 @@
   cargarResumen();
   cargarHistorial();
   cargarNumerosPrueba();
+  cargarConsultas();
   setInterval(cargarResumen, 20_000);
 })();

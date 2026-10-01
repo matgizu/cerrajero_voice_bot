@@ -223,8 +223,27 @@ async function reasignarCerrajero(servicioId, cerrajeroId) {
  *  - Resto de servicios: precios del catálogo en la base de datos (editables
  *    desde el panel admin, sin tocar código).
  */
-async function consultarPrecio({ tipo_servicio, marca, modelo, tipo_cerradura, es_emergencia } = {}) {
+/** Año de carro dicho por el cliente → número (acepta "98", "del 2016"…). */
+function anioCarro(anio) {
+  const n = parseInt(String(anio || '').replace(/\D/g, ''), 10);
+  if (Number.isNaN(n)) return null;
+  return n < 100 ? (n < 50 ? 2000 + n : 1900 + n) : n;
+}
+
+// Cliente 2026-10-01: carros de 1998 o antes no se cotizan por teléfono; el
+// técnico (o el dueño, si la consulta está activa) da el precio específico.
+const ANIO_MAXIMO_SIN_COTIZAR = 1998;
+
+async function consultarPrecio({ tipo_servicio, marca, modelo, anio, tipo_cerradura, es_emergencia } = {}) {
   if (tipo_servicio === 'emergencia_vehiculo' || marca) {
+    const anioN = anioCarro(anio);
+    if (anioN && anioN <= ANIO_MAXIMO_SIN_COTIZAR) {
+      return {
+        exito: true, tipo_servicio: 'emergencia_vehiculo', sin_precio: true, precio: null,
+        contexto: `Apertura de carro: ${[marca, modelo, anioN].filter(Boolean).join(' ')} (carro de ${ANIO_MAXIMO_SIN_COTIZAR} o antes)`,
+        respuesta_sugerida: '',
+      };
+    }
     const q = cotizarApertura(marca || '', modelo || '');
     return {
       exito: true,
@@ -248,6 +267,9 @@ async function consultarPrecio({ tipo_servicio, marca, modelo, tipo_cerradura, e
       tipo_cerradura: q.tipo,
       es_premium: q.es_premium,
       confirma_cerrajero: q.confirma_cerrajero,
+      // Cerradura electrónica: se cotiza con foto por WhatsApp, no es "sin precio".
+      sin_precio: q.confirma_cerrajero && q.tipo !== 'cerradura_electronica',
+      contexto: `Apertura de puerta de casa o negocio, cerradura tipo ${String(q.tipo || tipo_cerradura).replace(/_/g, ' ')}`,
       precio: q.precio,
       respuesta_sugerida: q.texto,
     };
@@ -258,7 +280,10 @@ async function consultarPrecio({ tipo_servicio, marca, modelo, tipo_cerradura, e
     [tipo_servicio]
   );
   if (rows.length === 0) {
-    return { exito: false, mensaje: `No tengo precio para '${tipo_servicio}'. Ofrece que el técnico cotiza en sitio.` };
+    return {
+      exito: false, sin_precio: true, contexto: `Servicio: ${String(tipo_servicio || 'otro').replace(/_/g, ' ')}`,
+      mensaje: `No tengo precio para '${tipo_servicio}'.`,
+    };
   }
 
   const item   = rows[0];
@@ -285,6 +310,15 @@ async function manejarFunctionCall(nombre, args) {
     case 'guardar_servicio': return guardarServicio(args);
     case 'consultar_precio': return consultarPrecio(args);
     case 'cotizar_llave':    return cotizarLlave(args);
+    // Versión web (Gemini): misma consulta al dueño que el teléfono
+    case 'consultar_dueno': {
+      const consultas = require('./consultas');
+      const r = await consultas.crearConsulta(args, (process.env.PUBLIC_URL || '').replace(/\/$/, ''));
+      return r.activa
+        ? { consulta_id: r.consulta.id, mensaje: 'Consulta enviada. Dile al cliente que espere un momento en la línea y llama a esperar_respuesta_dueno con este consulta_id.' }
+        : { mensaje: 'La consulta al dueño está apagada: dile al cliente que en breve lo llamamos para confirmarle el costo.' };
+    }
+    case 'esperar_respuesta_dueno': return require('./consultas').esperarRespuesta(args.consulta_id);
     default: return { exito: false, mensaje: `Función '${nombre}' no reconocida.` };
   }
 }

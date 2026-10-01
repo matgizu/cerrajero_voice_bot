@@ -107,6 +107,10 @@ const TOOLS = [
               type: 'STRING',
               description: 'Modelo del vehículo si lo mencionó (ej. "Corolla", "Corvette"). Opcional.'
             },
+            anio: {
+              type: 'STRING',
+              description: 'Año del vehículo (ej. "2016"). Los de 1998 o antes no se cotizan por teléfono.'
+            },
             tipo_cerradura: {
               type: 'STRING',
               description: 'Tipo de cerradura de la propiedad. Solo para tipo_servicio=apertura_puerta; pásalo SIEMPRE que sea una puerta de casa o negocio.',
@@ -154,6 +158,27 @@ const TOOLS = [
             precio_actual:      { type: 'NUMBER', description: 'Solo si el cliente se quejó del precio: el último precio en dólares que le dijiste. La herramienta te devuelve el siguiente precio más bajo.' }
           },
           required: []
+        }
+      },
+      {
+        name: 'consultar_dueno',
+        description: 'Cuando una herramienta te dice que NO HAY PRECIO y que consultes: envía la consulta de precio mientras el cliente espera en la línea.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            resumen:  { type: 'STRING', description: 'Una frase con el caso: qué necesita, carro (año, marca, modelo) o tipo de cerradura, pueblo si lo sabes.' },
+            pregunta: { type: 'STRING', description: 'Qué necesitas saber, normalmente "¿Qué precio le damos?"' }
+          },
+          required: ['resumen']
+        }
+      },
+      {
+        name: 'esperar_respuesta_dueno',
+        description: 'Espera unos segundos la respuesta de la consulta de precio. Llámala en bucle con el consulta_id hasta que haya respuesta, hablándole al cliente entre una y otra.',
+        parameters: {
+          type: 'OBJECT',
+          properties: { consulta_id: { type: 'STRING', description: 'El consulta_id que te dio consultar_dueno' } },
+          required: ['consulta_id']
         }
       },
       {

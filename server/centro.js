@@ -72,6 +72,12 @@ function corregirUltimoAgente(callSid, texto) {
   emitter.emit('llamada_actualizada', vistaActiva(l));
 }
 
+/** Número del cliente de una llamada en curso, buscando por conversation_id. */
+function numeroDeConversacion(conversationId) {
+  for (const l of activas.values()) if (l.conversationId === conversationId) return l.numero;
+  return '';
+}
+
 async function finalizarLlamada(callSid, motivo = '') {
   const l = activas.get(callSid);
   if (!l) return;
@@ -376,4 +382,5 @@ module.exports = {
   resumen,
   numerosPrueba,
   llamarPrueba,
+  numeroDeConversacion,
 };

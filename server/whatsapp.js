@@ -50,24 +50,28 @@ async function notificarCerrajero(cerrajero, servicio) {
     `⏱️ ETA estimado: ~${servicio.tiempo_estimado_minutos} min`
   ].join('\n');
 
+  const r = await enviarWhatsApp(cerrajero.telefono, cerrajero.callmebot_apikey, texto);
+  console.log(`📱 WhatsApp → ${cerrajero.nombre}: ${r.ok ? '✅ enviado' : `❌ error (${r.status || r.error})`}`);
+  return r;
+}
+
+/**
+ * Envía un WhatsApp con CallMeBot (gratis, solo envío). El destinatario debe
+ * haber activado CallMeBot una vez y darnos su apikey personal.
+ */
+function enviarWhatsApp(telefono, apikey, texto) {
   // CallMeBot espera el número en formato internacional sin + ni espacios
-  const phone = cerrajero.telefono.replace(/\D/g, '');
-  const url   = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(texto)}&apikey=${cerrajero.callmebot_apikey}`;
+  const phone = String(telefono || '').replace(/\D/g, '');
+  if (!phone || !apikey) return Promise.resolve({ ok: false, error: 'Falta número o apikey' });
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(texto)}&apikey=${encodeURIComponent(apikey)}`;
 
   return new Promise((resolve) => {
     https.get(url, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        const ok = res.statusCode === 200;
-        console.log(`📱 WhatsApp → ${cerrajero.nombre}: ${ok ? '✅ enviado' : `❌ error (${res.statusCode})`}`);
-        resolve({ ok, status: res.statusCode });
-      });
-    }).on('error', (err) => {
-      console.error(`❌ Error WhatsApp → ${cerrajero.nombre}:`, err.message);
-      resolve({ ok: false, error: err.message });
-    });
+      res.on('end', () => resolve({ ok: res.statusCode === 200, status: res.statusCode, body: body.slice(0, 300) }));
+    }).on('error', (err) => resolve({ ok: false, error: err.message }));
   });
 }
 
-module.exports = { notificarCerrajero };
+module.exports = { notificarCerrajero, enviarWhatsApp };

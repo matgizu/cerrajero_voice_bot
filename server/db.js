@@ -115,6 +115,29 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS llamadas_inicio_idx ON llamadas (inicio DESC);
 
+    -- Ajustes editables desde el panel (clave → valor JSON)
+    CREATE TABLE IF NOT EXISTS ajustes (
+      clave TEXT PRIMARY KEY,
+      valor JSONB NOT NULL
+    );
+
+    -- Consultas de precio al dueño por WhatsApp mientras el cliente espera en línea
+    CREATE TABLE IF NOT EXISTS consultas (
+      id              TEXT PRIMARY KEY,
+      token           TEXT        NOT NULL UNIQUE,
+      conversation_id TEXT        NOT NULL DEFAULT '',
+      numero_cliente  TEXT        NOT NULL DEFAULT '',
+      resumen         TEXT        NOT NULL DEFAULT '',
+      pregunta        TEXT        NOT NULL DEFAULT '',
+      estado          TEXT        NOT NULL DEFAULT 'pendiente',
+      respuesta       TEXT        NOT NULL DEFAULT '',
+      respondida_por  TEXT        NOT NULL DEFAULT '',
+      whatsapp_ok     BOOLEAN     NOT NULL DEFAULT false,
+      creada_en       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      respondida_en   TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS consultas_creada_idx ON consultas (creada_en DESC);
+
     CREATE TABLE IF NOT EXISTS precios_apertura_marca (
       id               SERIAL PRIMARY KEY,
       marca            TEXT          NOT NULL UNIQUE,

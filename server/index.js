@@ -28,6 +28,7 @@ const { getYears, getMakes, getModels, listarPreciosVehiculos, upsertPrecioVehic
 const { listarPreciosAperturaMarca, upsertPrecioAperturaMarca, eliminarPrecioAperturaMarca } = require('./precios-apertura-marca');
 const { handleTwilioStream } = require('./elevenlabs-bridge');
 const centro = require('./centro');
+const consultas = require('./consultas');
 const crypto = require('crypto');
 const emitter = require('./events');
 
@@ -105,7 +106,8 @@ emitter.on('servicio_nuevo',       data => broadcast('servicio_nuevo', data));
 emitter.on('servicio_actualizado', data => broadcast('servicio_actualizado', data));
 emitter.on('cerrajero_actualizado',data => broadcast('cerrajero_actualizado', data));
 // Centro de mando
-for (const ev of ['llamada_iniciada', 'llamada_actualizada', 'llamada_mensaje', 'llamada_finalizada', 'llamada_historial']) {
+for (const ev of ['llamada_iniciada', 'llamada_actualizada', 'llamada_mensaje', 'llamada_finalizada', 'llamada_historial',
+                  'consulta_nueva', 'consulta_actualizada', 'ajustes_actualizados']) {
   emitter.on(ev, data => broadcast(ev, data));
 }
 
@@ -314,10 +316,24 @@ app.post('/api/tools/guardar_servicio', safe(async (req, res) => {
   res.json({ result: resultado.mensaje || 'Servicio procesado' });
 }));
 
+/**
+ * Instrucción para el agente cuando no hay precio: consultar al dueño (si la
+ * opción está prendida en el panel) o prometer la llamada de confirmación.
+ */
+async function instruccionSinPrecio(contexto) {
+  if (await consultas.consultaActiva()) {
+    return `NO HAY PRECIO para este caso (${contexto}). Dile al cliente: "Deme un momento en la línea, por favor, que ya le estoy consultando el precio." y enseguida llama a consultar_dueno con resumen = una frase con el caso (${contexto}, más lo que te haya contado el cliente) y pregunta = lo que necesitas saber (normalmente "¿Qué precio le damos?").`;
+  }
+  return 'NO HAY PRECIO para este caso. No inventes ninguno. Dile al cliente: "Ese precio se lo confirmamos; en breve lo llamamos para darle el costo exacto." y sigue tomando los datos para guardar el servicio (en notas pon "precio por confirmar").';
+}
+
 app.post('/api/tools/consultar_precio', safe(async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook consultar_precio:', JSON.stringify(params));
   const resultado = await consultarPrecio(params);
+  if (resultado.sin_precio) {
+    return res.json({ result: await instruccionSinPrecio(resultado.contexto || params.tipo_servicio) });
+  }
   res.json({ result: resultado.respuesta_sugerida || resultado.mensaje || 'Sin precio disponible' });
 }));
 
@@ -325,8 +341,134 @@ app.post('/api/tools/cotizar_llave', safe(async (req, res) => {
   const params  = req.body?.parameters || req.body || {};
   console.log('\n📥 Tool webhook cotizar_llave:', JSON.stringify(params));
   const r = cotizarLlave(params);
+  if (r.sin_precio) return res.json({ result: await instruccionSinPrecio(r.contexto) });
   // Texto para decir + reglas de negociación en un solo string para el agente
   res.json({ result: [r.texto && `Dile al cliente: ${r.texto}`, r.instrucciones].filter(Boolean).join('\n') });
+}));
+
+// ── Consulta de precio al dueño (cliente en espera) ─────────────────────────
+const urlPublica = req => (process.env.PUBLIC_URL || `https://${req.headers.host}`).replace(/\/$/, '');
+
+app.post('/api/tools/consultar_dueno', safe(async (req, res) => {
+  const params = req.body?.parameters || req.body || {};
+  console.log('\n📥 Tool webhook consultar_dueno:', JSON.stringify(params));
+  const r = await consultas.crearConsulta({
+    resumen: params.resumen,
+    pregunta: params.pregunta,
+    conversation_id: params.conversation_id,
+    numero_cliente: centro.numeroDeConversacion(params.conversation_id),
+  }, urlPublica(req));
+  if (!r.activa) return res.json({ result: await instruccionSinPrecio(params.resumen || '') });
+  res.json({
+    result: `Consulta enviada (consulta_id: ${r.consulta.id}). Si todavía no se lo dijiste, dile al cliente: "Deme un momento en la línea, por favor, que ya le estoy consultando el precio." Luego llama a esperar_respuesta_dueno con consulta_id ${r.consulta.id}.`,
+  });
+}));
+
+app.post('/api/tools/esperar_respuesta_dueno', safe(async (req, res) => {
+  const params = req.body?.parameters || req.body || {};
+  const id = String(params.consulta_id || '').trim();
+  const r = await consultas.esperarRespuesta(id);
+  console.log(`📥 esperar_respuesta_dueno ${id}: ${r.estado} (${r.segundos} s)`);
+  if (r.estado === 'respondida') {
+    return res.json({ result: `Ya tenemos la respuesta: "${r.respuesta}". Agradécele la espera y díselo al cliente con tus palabras, en frases cortas y tratándolo de usted (no menciones al dueño ni el WhatsApp). Si es un precio, ese es el precio que cotizas. Después sigue con el flujo normal (pueblo, dirección, nombre y teléfono).` });
+  }
+  if (r.estado === 'pendiente') {
+    return res.json({ result: `Todavía sin respuesta (${r.segundos} s). Dile al cliente algo como: "Gracias por su paciencia en la línea. Deme otro momentito, por favor, que ya casi termino." (varía la frase cada vez) y vuelve a llamar a esperar_respuesta_dueno con consulta_id ${id}.` });
+  }
+  res.json({ result: 'No llegó la respuesta a tiempo. Dile al cliente: "Gracias por esperar. Para no tenerlo más tiempo en la línea, le tomo los datos y en breve lo llamamos para confirmarle el costo exacto." Sigue tomando los datos y al guardar pon en notas "precio por confirmar".' });
+}));
+
+// Página para que el dueño responda desde el enlace del WhatsApp (sin contraseña:
+// el token de la URL es secreto y solo sirve para esa consulta).
+const escHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+app.get('/r/:token', safe(async (req, res) => {
+  const c = await consultas.consultaPorToken(req.params.token);
+  res.set('Cache-Control', 'no-store');
+  if (!c) return res.status(404).send('<h2 style="font-family:sans-serif">Esta consulta no existe.</h2>');
+  res.type('html').send(paginaRespuesta(c, req.params.token));
+}));
+
+app.post('/r/:token', safe(async (req, res) => {
+  try {
+    const c = await consultas.responderConsulta({ token: req.params.token }, req.body?.respuesta, 'WhatsApp');
+    res.json({ ok: true, estado: c.estado });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+}));
+
+function paginaRespuesta(c, token) {
+  const respondida = c.estado === 'respondida';
+  const expirada = c.estado === 'expirada';
+  const rapidas = ['Dile que lo llamamos en breve para darle el precio', 'Dile que el técnico le cotiza en el sitio'];
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consulta de precio — Tu Cerrajero Puerto Rico</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --borde:#30363d; --texto:#e6edf3; --tenue:#8b949e; --acento:#f0b429; --ok:#3fb950; --alerta:#e3a008; }
+  * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--texto); font:16px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:20px; margin:0 0 4px; } .tenue { color:var(--tenue); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--borde); border-radius:12px; padding:16px; margin:16px 0; }
+  .etq { font-size:12px; color:var(--tenue); text-transform:uppercase; letter-spacing:.4px; } .val { margin:2px 0 12px; }
+  textarea { width:100%; min-height:110px; background:#0b0f14; color:var(--texto); border:1px solid var(--borde); border-radius:10px; padding:12px; font:inherit; }
+  button { width:100%; border:0; border-radius:10px; padding:14px; font-family:inherit; font-size:16px; font-weight:600; cursor:pointer; margin-top:10px; }
+  .principal { background:var(--acento); color:#000; } .rapida { background:transparent; color:var(--texto); border:1px solid var(--borde); font-weight:500; font-size:15px; padding:12px; }
+  .aviso { padding:12px; border-radius:10px; margin-top:12px; font-size:14px; } .ok { background:rgba(63,185,80,.12); color:var(--ok); } .alerta { background:rgba(227,160,8,.12); color:var(--alerta); }
+</style></head><body><main>
+  <h1>🔑 Consulta de precio</h1>
+  <div class="tenue">Tu Cerrajero Puerto Rico · ${escHtml(c.id)}</div>
+  <div class="card">
+    <div class="etq">Cliente</div><div class="val">${escHtml(c.numero_cliente || 'En la línea')}</div>
+    <div class="etq">Caso</div><div class="val">${escHtml(c.resumen)}</div>
+    <div class="etq">Pregunta</div><div class="val"><strong>${escHtml(c.pregunta)}</strong></div>
+  </div>
+  ${respondida ? `<div class="aviso ok">✅ Ya respondida: “${escHtml(c.respuesta)}”</div>` : `
+  ${expirada ? '<div class="aviso alerta">⏱️ El cliente ya no está esperando en la línea. Tu respuesta queda guardada para cuando lo llamen.</div>' : '<div class="aviso alerta">📞 El cliente está esperando en la línea. Escribe lo que el bot le debe decir.</div>'}
+  <form id="f">
+    <textarea id="r" placeholder="Ej.: Dile que son 90 dólares con varilla. Si hay que trabajar la cerradura son 150." required></textarea>
+    <button class="principal" type="submit">Enviar respuesta</button>
+    ${rapidas.map(t => `<button class="rapida" type="button" data-t="${escHtml(t)}">${escHtml(t)}</button>`).join('')}
+  </form>
+  <div id="msg"></div>`}
+</main>
+${respondida ? '' : `<script>
+  const f = document.getElementById('f'), r = document.getElementById('r'), msg = document.getElementById('msg');
+  document.querySelectorAll('.rapida').forEach(b => b.onclick = () => { r.value = b.dataset.t; f.requestSubmit(); });
+  f.onsubmit = async e => {
+    e.preventDefault();
+    f.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+      const res = await fetch(${JSON.stringify(`/r/${token}`)}, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ respuesta: r.value }) });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
+      f.remove();
+      msg.innerHTML = '<div class="aviso ok">✅ Enviado. El bot se lo dice al cliente ahora mismo.</div>';
+    } catch (err) {
+      msg.innerHTML = '<div class="aviso alerta">' + (err.message || 'No se pudo enviar') + '</div>';
+      f.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+  };
+</script>`}
+</body></html>`;
+}
+
+// Panel: interruptor, configuración y respuestas a consultas
+app.get('/api/centro/consulta-dueno', safe(async (_req, res) => {
+  res.json({ ajustes: await consultas.obtenerAjustesConsulta(), consultas: await consultas.listarConsultas(30) });
+}));
+
+app.put('/api/centro/consulta-dueno', safe(async (req, res) => {
+  res.json(await consultas.actualizarAjustesConsulta(req.body || {}));
+}));
+
+app.post('/api/centro/consultas/:id/responder', safe(async (req, res) => {
+  try {
+    res.json(await consultas.responderConsulta({ id: req.params.id }, req.body?.respuesta, 'Panel'));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 }));
 
 app.get('/api/health', (_req, res) => {

@@ -1022,3 +1022,34 @@ body {
 .prueba-botones { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn-llamar small { opacity: .75; font-weight: 500; margin-left: 4px; }
 .btn-llamar:disabled { opacity: .6; cursor: wait; }
+
+/* Consulta de precio al dueño */
+.consulta-panel { margin-bottom: 16px; }
+.consulta-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end; }
+.consulta-config label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.consulta-config input, .consulta-config select, .consulta-responder input {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 8px 10px; font-size: 13px; width: 100%;
+}
+.consulta-ayuda { margin-top: 10px; line-height: 1.5; }
+.consultas-lista { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.consulta { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface2); display: flex; flex-direction: column; gap: 6px; }
+.consulta.pendiente { border-left: 3px solid var(--warning); }
+.consulta.respondida { border-left: 3px solid var(--success); }
+.consulta-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.consulta-caso { font-size: 13px; }
+.consulta-pregunta { font-size: 13px; color: var(--muted); }
+.consulta-respuesta { font-size: 13px; color: var(--success); }
+.consulta-responder { display: flex; gap: 8px; }
+.consulta-responder .btn { white-space: nowrap; }
+
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-slider { width: 42px; height: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; position: relative; transition: background .2s; flex-shrink: 0; }
+.switch-slider::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
+.switch input:checked + .switch-slider { background: rgba(63,185,80,.25); border-color: var(--success); }
+.switch input:checked + .switch-slider::after { transform: translateX(18px); background: var(--success); }
+.switch input:focus-visible + .switch-slider { outline: 2px solid var(--info); outline-offset: 2px; }
+.switch-texto { font-size: 13px; font-weight: 600; color: var(--muted); }
+.switch-texto.on { color: var(--success); }
+@media (max-width: 480px) { .consulta-responder { flex-direction: column; } }
