@@ -49,13 +49,100 @@
 
   <!-- ── Tabs ────────────────────────────────────────────────────────────────── -->
   <div class="tabs">
-    <button class="tab-btn active" data-tab="servicios">Servicios</button>
+    <button class="tab-btn active" data-tab="centro">📡 Centro de mando</button>
+    <button class="tab-btn" data-tab="servicios">Servicios</button>
     <button class="tab-btn" data-tab="cerrajeros">Cerrajeros</button>
     <button class="tab-btn" data-tab="catalogo">Catálogo de Precios</button>
   </div>
 
   <!-- ── Tab: Servicios ──────────────────────────────────────────────────────── -->
-  <section id="tab-servicios" class="tab-content active">
+  <!-- ── Tab: Centro de mando ─────────────────────────────────────────────────── -->
+  <section id="tab-centro" class="tab-content active">
+
+    <div class="centro-kpis">
+      <div class="kpi kpi-vivo">
+        <span class="kpi-label"><span class="punto-vivo"></span> En curso</span>
+        <span class="kpi-num" id="kpi-activas">0</span>
+        <span class="kpi-sub" id="kpi-lineas">0 de 10 líneas</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Llamadas hoy</span>
+        <span class="kpi-num" id="kpi-hoy">0</span>
+        <span class="kpi-sub" id="kpi-hoy-min">0 min</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Servicios hoy</span>
+        <span class="kpi-num" id="kpi-servicios">0</span>
+        <span class="kpi-sub" id="kpi-conversion">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Costo hoy</span>
+        <span class="kpi-num" id="kpi-costo-hoy">$0.00</span>
+        <span class="kpi-sub" id="kpi-costo-llamada">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Costo del mes</span>
+        <span class="kpi-num" id="kpi-costo-mes">$0.00</span>
+        <span class="kpi-sub" id="kpi-llamadas-mes">0 llamadas</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Tokens del mes (IA)</span>
+        <span class="kpi-num" id="kpi-tokens">0</span>
+        <span class="kpi-sub" id="kpi-creditos-mes">0 créditos</span>
+      </div>
+    </div>
+
+    <div class="centro-grid">
+      <div class="panel panel-activas">
+        <div class="panel-head">
+          <h3>🔴 Llamadas en curso</h3>
+          <span class="panel-hint">La transcripción aparece en vivo</span>
+        </div>
+        <div id="centro-activas" class="activas-lista">
+          <div class="vacio">No hay llamadas en este momento.</div>
+        </div>
+      </div>
+
+      <div class="panel-col">
+        <div class="panel">
+          <div class="panel-head"><h3>📈 Llamadas · últimas 24 h</h3><span class="panel-hint" id="horas-total"></span></div>
+          <div id="centro-horas" class="barras"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>💳 Consumo y saldos</h3><span class="panel-hint" id="consumo-actualizado"></span></div>
+          <div id="centro-consumo" class="consumo"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>🗂️ Historial de llamadas</h3>
+        <div class="historial-tools">
+          <input type="text" id="historial-buscar" placeholder="🔍  Buscar número o resumen..." autocomplete="off">
+          <button class="btn btn-ghost" id="historial-recargar">↻ Actualizar</button>
+        </div>
+      </div>
+      <div class="historial-wrap">
+        <table class="catalogo-table historial-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Número</th>
+              <th>Duración</th>
+              <th>Resumen</th>
+              <th>Servicio</th>
+              <th>Costo</th>
+              <th>Tokens</th>
+            </tr>
+          </thead>
+          <tbody id="historial-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-servicios" class="tab-content">
     <div class="toolbar">
       <input type="text" id="search" placeholder="🔍  Buscar por nombre, teléfono o ubicación..." autocomplete="off">
       <select id="filter-estado">
@@ -282,5 +369,6 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="admin.js"></script>
+  <script src="centro.js"></script>
 </body>
 </html>

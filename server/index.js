@@ -27,6 +27,8 @@ const { listarCatalogo, crearServicioCatalogo, actualizarServicioCatalogo, elimi
 const { getYears, getMakes, getModels, listarPreciosVehiculos, upsertPrecioVehiculo, eliminarPrecioVehiculo } = require('./precios-vehiculos');
 const { listarPreciosAperturaMarca, upsertPrecioAperturaMarca, eliminarPrecioAperturaMarca } = require('./precios-apertura-marca');
 const { handleTwilioStream } = require('./elevenlabs-bridge');
+const centro = require('./centro');
+const crypto = require('crypto');
 const emitter = require('./events');
 
 // ── Precios estimados Gemini Live API ────────────────────────────────────────
@@ -58,6 +60,33 @@ const safe = (fn) => async (req, res) => {
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false })); // webhooks de Twilio (form POST)
+
+// ── Contraseña del panel ──────────────────────────────────────────────────────
+// El panel muestra teléfonos, direcciones, transcripciones y grabaciones de
+// clientes. Con ADMIN_PASSWORD definida en Railway, /admin y la API del panel
+// piden usuario/contraseña (HTTP Basic; el usuario puede ser cualquiera).
+// Quedan públicas solo las rutas que usan Twilio, ElevenLabs y la web del bot.
+const RUTAS_PUBLICAS = [
+  /^\/api\/tools\//, /^\/api\/health$/, /^\/api\/voice-config$/, /^\/api\/elevenlabs\/signed-url$/,
+];
+function igualSeguro(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+app.use((req, res, next) => {
+  const clave = process.env.ADMIN_PASSWORD;
+  const esPanel = req.path.startsWith('/admin') ||
+    (req.path.startsWith('/api/') && !RUTAS_PUBLICAS.some(r => r.test(req.path)));
+  if (!clave || !esPanel) return next();
+  const [tipo, valor] = (req.headers.authorization || '').split(' ');
+  if (tipo === 'Basic' && valor) {
+    const pass = Buffer.from(valor, 'base64').toString().split(':').slice(1).join(':');
+    if (igualSeguro(pass, clave)) return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Panel Tu Cerrajero Puerto Rico", charset="UTF-8"');
+  res.status(401).send('Acceso restringido');
+});
 
 // Servir archivos estáticos del cliente
 app.use(express.static(path.join(__dirname, '../client')));
@@ -75,6 +104,10 @@ function broadcast(event, data) {
 emitter.on('servicio_nuevo',       data => broadcast('servicio_nuevo', data));
 emitter.on('servicio_actualizado', data => broadcast('servicio_actualizado', data));
 emitter.on('cerrajero_actualizado',data => broadcast('cerrajero_actualizado', data));
+// Centro de mando
+for (const ev of ['llamada_iniciada', 'llamada_actualizada', 'llamada_mensaje', 'llamada_finalizada', 'llamada_historial']) {
+  emitter.on(ev, data => broadcast(ev, data));
+}
 
 app.get('/api/eventos', (req, res) => {
   res.setHeader('Content-Type',  'text/event-stream');
@@ -168,6 +201,38 @@ app.delete('/api/precios-apertura-marca/:id', async (req, res) => {
   res.status(resultado.exito ? 200 : 404).json(resultado);
 });
 
+// ── Centro de mando ──────────────────────────────────────────────────────────
+app.get('/api/centro/resumen', safe(async (_req, res) => {
+  res.json(await centro.resumen());
+}));
+
+app.get('/api/centro/llamadas', safe(async (req, res) => {
+  res.json(await centro.listarLlamadas(req.query.limite));
+}));
+
+app.get('/api/centro/llamadas/:id', safe(async (req, res) => {
+  const llamada = await centro.obtenerLlamada(req.params.id);
+  if (!llamada) return res.status(404).json({ error: 'Llamada no encontrada' });
+  res.json(llamada);
+}));
+
+// Grabación de la llamada (proxy a ElevenLabs: la API key no sale del servidor)
+app.get('/api/centro/llamadas/:id/audio', safe(async (req, res) => {
+  const cid = await centro.conversationIdDe(req.params.id);
+  if (!cid) return res.status(404).json({ error: 'Esta llamada no tiene grabación' });
+  const r = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${cid}/audio`, {
+    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY || '' },
+  });
+  if (!r.ok) return res.status(r.status).json({ error: 'Grabación no disponible todavía' });
+  res.set('Content-Type', r.headers.get('content-type') || 'audio/mpeg');
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.send(Buffer.from(await r.arrayBuffer()));
+}));
+
+app.post('/api/centro/importar', safe(async (_req, res) => {
+  res.json({ importadas: await centro.importarHistorial(200) });
+}));
+
 // Admin panel
 app.get('/admin', (_req, res) => {
   res.sendFile(path.join(__dirname, '../client/admin.html'));
@@ -210,11 +275,20 @@ app.post('/twilio/incoming', (req, res) => {
     ? process.env.PUBLIC_URL.replace('https://', 'wss://').replace('http://', 'ws://')
     : `wss://${req.headers.host}`;
   const wsUrl = `${host}/twilio-stream`;
+  // Número del cliente para el centro de mando: en una llamada entrante es
+  // From; en una que hacemos nosotros (pruebas, devoluciones) es To.
+  const b = req.body || {};
+  const entrante = !String(b.Direction || 'inbound').startsWith('outbound');
+  const numero = (entrante ? b.From : b.To) || '';
+  const xml = v => String(v).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
   res.type('text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${wsUrl}" />
+    <Stream url="${wsUrl}">
+      <Parameter name="numero" value="${xml(numero)}" />
+      <Parameter name="direccion" value="${entrante ? 'entrante' : 'saliente'}" />
+    </Stream>
   </Connect>
 </Response>`);
 });
@@ -572,6 +646,10 @@ async function start() {
   console.log('🔐 Servidor arrancando...');
   console.log('  Conectando a la base de datos...');
   await initDB();
+  // Llamadas anteriores al centro de mando → historial (en segundo plano)
+  centro.importarHistorial(200)
+    .then(n => n && console.log(`  📞 Historial: ${n} llamadas importadas de ElevenLabs`))
+    .catch(err => console.warn('  ⚠️  No pude importar el historial de llamadas:', err.message));
 
   server.listen(PORT, () => {
     console.log('\n');

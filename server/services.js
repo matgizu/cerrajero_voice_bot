@@ -38,6 +38,7 @@ function rowToServicio(row) {
     tipo_cerradura:          row.tipo_cerradura  || '',
     anio_vehiculo:           row.anio_vehiculo   || '',
     tipo_llave:              row.tipo_llave      || '',
+    conversation_id:         row.conversation_id || '',
     es_premium:              row.es_premium === true,
     precio_cotizado:         row.precio_cotizado || '',
     estado:                  row.estado,
@@ -55,7 +56,7 @@ async function guardarServicio(datos) {
   const {
     nombre, telefono, ubicacion, tipo_servicio, es_emergencia, notas_adicionales,
     marca_vehiculo, modelo_vehiculo, tipo_cerradura,
-    anio_vehiculo, tipo_llave, precio_acordado,
+    anio_vehiculo, tipo_llave, precio_acordado, conversation_id,
   } = datos;
 
   if (!nombre || !telefono || !ubicacion || !tipo_servicio) {
@@ -111,8 +112,9 @@ async function guardarServicio(datos) {
     `INSERT INTO servicios
        (id, nombre, telefono, ubicacion, tipo_servicio, es_emergencia,
         notas_adicionales, marca_vehiculo, modelo_vehiculo, tipo_cerradura, es_premium, precio_cotizado,
-        estado, cerrajero_id, cerrajero_nombre, tiempo_estimado_minutos, anio_vehiculo, tipo_llave)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendiente',$13,$14,$15,$16,$17)
+        estado, cerrajero_id, cerrajero_nombre, tiempo_estimado_minutos, anio_vehiculo, tipo_llave,
+        conversation_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendiente',$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [
       id,
@@ -132,6 +134,8 @@ async function guardarServicio(datos) {
       tiempoEstimado,
       String(anio_vehiculo || '').trim(),
       String(tipo_llave || '').trim(),
+      // Lo inyecta ElevenLabs (system__conversation_id): liga el servicio a la llamada
+      String(conversation_id || '').trim(),
     ]
   );
 

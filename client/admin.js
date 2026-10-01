@@ -330,6 +330,9 @@ function actualizarCerrajero(cerrajero) {
 function conectarSSE() {
   const badge = document.getElementById('sse-badge');
   const es    = new EventSource('/api/eventos');
+  // El centro de mando (centro.js) escucha sus eventos en este mismo canal
+  window.__sse = es;
+  document.dispatchEvent(new CustomEvent('sse-conectado', { detail: es }));
 
   es.addEventListener('conectado', () => {
     badge.textContent  = '● En vivo';

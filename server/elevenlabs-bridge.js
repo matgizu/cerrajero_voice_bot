@@ -2,6 +2,7 @@
 
 const WebSocket = require('ws');
 const { saludoPR } = require('./gemini');
+const centro = require('./centro');
 
 // ── Tabla μ-law decode (precalculada) ─────────────────────────────────────────
 const ULAW_DECODE = new Int16Array(256);
@@ -116,6 +117,8 @@ function handleTwilioStream(twilioWs) {
   const elWs  = new WebSocket(elUrl, { headers: { 'xi-api-key': apiKey } });
 
   let streamSid      = null;
+  let callSid        = null;   // para el centro de mando
+  let conversationId = null;
   let elReady        = false;
   let outputRate     = 16000;
   let outputUlaw     = false;
@@ -151,6 +154,8 @@ function handleTwilioStream(twilioWs) {
           inputUlaw  = esUlaw(meta.user_input_audio_format);
           outputRate = parseSampleRate(meta.agent_output_audio_format);
           elReady    = true;
+          conversationId = meta.conversation_id || null;
+          if (callSid) centro.asociarConversacion(callSid, conversationId);
           console.log(`🎙️ ElevenLabs listo | ID: ${meta.conversation_id} | Audio entrada: ${meta.user_input_audio_format} | salida: ${meta.agent_output_audio_format}`);
           // Vaciar cola de audio del cliente
           while (audioQueue.length > 0) {
@@ -193,10 +198,20 @@ function handleTwilioStream(twilioWs) {
 
         case 'agent_response':
           console.log('🤖 Agente (tel):', msg.agent_response_event?.agent_response?.slice(0, 80));
+          centro.agregarMensaje(callSid, 'agente', msg.agent_response_event?.agent_response);
+          break;
+
+        case 'agent_response_correction':
+          centro.corregirUltimoAgente(callSid, msg.agent_response_correction_event?.corrected_agent_response);
           break;
 
         case 'user_transcript':
           console.log('👤 Cliente (tel):', msg.user_transcription_event?.user_transcript);
+          centro.agregarMensaje(callSid, 'cliente', msg.user_transcription_event?.user_transcript);
+          break;
+
+        case 'agent_tool_response':
+          centro.agregarMensaje(callSid, 'herramienta', msg.agent_tool_response?.tool_name);
           break;
       }
     } catch (err) {
@@ -207,6 +222,7 @@ function handleTwilioStream(twilioWs) {
   elWs.on('error', (err) => console.error('❌ ElevenLabs WS error:', err.message));
   elWs.on('close', (code, reason) => {
     console.log(`ElevenLabs WS cerrado. Código: ${code} | Razón: "${reason?.toString() || ''}"`);
+    if (callSid) centro.finalizarLlamada(callSid, `ElevenLabs ${code}`);
     if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
   });
 
@@ -224,7 +240,14 @@ function handleTwilioStream(twilioWs) {
 
         case 'start':
           streamSid = msg.start.streamSid;
-          console.log(`📞 Llamada [${msg.start.callSid}] — Stream: ${streamSid}`);
+          callSid   = msg.start.callSid;
+          console.log(`📞 Llamada [${callSid}] — Stream: ${streamSid}`);
+          {
+            // Número y dirección los manda /twilio/incoming como <Parameter>
+            const p = msg.start.customParameters || {};
+            centro.iniciarLlamada({ callSid, numero: p.numero, direccion: p.direccion });
+            if (conversationId) centro.asociarConversacion(callSid, conversationId);
+          }
           break;
 
         case 'media': {
@@ -240,6 +263,7 @@ function handleTwilioStream(twilioWs) {
 
         case 'stop':
           console.log('📞 Llamada finalizada');
+          if (callSid) centro.finalizarLlamada(callSid, 'colgó');
           if (elWs.readyState === WebSocket.OPEN) elWs.close();
           break;
       }
@@ -250,7 +274,11 @@ function handleTwilioStream(twilioWs) {
 
   twilioWs.on('close', (code, reason) => {
     console.log(`Twilio WS cerrado. Código: ${code} | Razón: "${reason?.toString() || ''}"`);
+    if (callSid) centro.finalizarLlamada(callSid, 'colgó');
     if (elWs.readyState === WebSocket.OPEN) elWs.close();
+    // Si colgaron antes de que ElevenLabs terminara de conectar, no dejar la
+    // conversación abierta consumiendo minutos.
+    else if (elWs.readyState === WebSocket.CONNECTING) elWs.terminate();
   });
 
   twilioWs.on('error', (err) => console.error('❌ Twilio WS error:', err.message));

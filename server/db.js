@@ -92,6 +92,29 @@ async function initDB() {
       UNIQUE (anio, marca, modelo)
     );
 
+    -- Centro de mando: una fila por llamada telefónica atendida por el agente.
+    -- id = CallSid de Twilio (o el conversation_id si se importó de ElevenLabs).
+    CREATE TABLE IF NOT EXISTS llamadas (
+      id              TEXT PRIMARY KEY,
+      conversation_id TEXT UNIQUE,
+      numero          TEXT        NOT NULL DEFAULT '',
+      direccion       TEXT        NOT NULL DEFAULT '',
+      inicio          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      fin             TIMESTAMPTZ,
+      duracion_seg    INTEGER,
+      transcript      JSONB       NOT NULL DEFAULT '[]',
+      servicio_id     TEXT,
+      resumen         TEXT        NOT NULL DEFAULT '',
+      costo_usd       NUMERIC(10,4),
+      creditos        INTEGER,
+      tokens_llm      INTEGER,
+      tts_seg         NUMERIC(10,1),
+      asr_seg         NUMERIC(10,1),
+      fin_motivo      TEXT        NOT NULL DEFAULT '',
+      metricas_ok     BOOLEAN     NOT NULL DEFAULT false
+    );
+    CREATE INDEX IF NOT EXISTS llamadas_inicio_idx ON llamadas (inicio DESC);
+
     CREATE TABLE IF NOT EXISTS precios_apertura_marca (
       id               SERIAL PRIMARY KEY,
       marca            TEXT          NOT NULL UNIQUE,
@@ -111,6 +134,7 @@ async function initDB() {
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS es_premium      BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS precio_cotizado TEXT DEFAULT '';
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tipo_cerradura  TEXT DEFAULT '';
+    ALTER TABLE servicios ADD COLUMN IF NOT EXISTS conversation_id TEXT DEFAULT '';
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS anio_vehiculo   TEXT DEFAULT '';
     ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tipo_llave      TEXT DEFAULT '';
   `);
