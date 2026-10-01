@@ -1062,3 +1062,25 @@ body {
 .dueno-link { display: flex; gap: 8px; flex-wrap: wrap; }
 .dueno-link input { flex: 1; min-width: 220px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
 .dueno-link[hidden] { display: none; }
+
+/* Voz del bot */
+.voz-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.voz-ajuste { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.voz-ajuste-head { display: flex; justify-content: space-between; align-items: baseline; }
+.voz-ajuste label { font-weight: 600; font-size: 13px; }
+.voz-ajuste strong { font-variant-numeric: tabular-nums; color: var(--accent); }
+.voz-ajuste input[type=range] { width: 100%; accent-color: var(--accent); }
+.voz-switch { margin: 4px 0 18px; }
+.voz-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 11px; font-size: 13.5px; font-family: inherit; }
+.voz-frases { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.voz-frases .chip { cursor: pointer; }
+.voz-acciones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.voz-acciones audio { flex: 1; min-width: 220px; height: 36px; }
+.voz-pron { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.voz-pron-fila { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 8px; align-items: center; }
+.voz-pron-fila span { color: var(--muted); }
+.voz-pron-fila button { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; }
+.voz-guardar-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; position: sticky; bottom: 12px; }
+.voz-guardar-bar .voz-acciones { margin-top: 0; }
+#voz-cambios.con-cambios { color: var(--warning); font-weight: 600; }
+@media (max-width: 900px) { .voz-grid { grid-template-columns: 1fr; } }

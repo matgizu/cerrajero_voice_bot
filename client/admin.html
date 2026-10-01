@@ -50,6 +50,7 @@
   <!-- ── Tabs ────────────────────────────────────────────────────────────────── -->
   <div class="tabs">
     <button class="tab-btn active" data-tab="centro">📡 Centro de mando</button>
+    <button class="tab-btn" data-tab="voz">🎙️ Voz del bot</button>
     <button class="tab-btn" data-tab="servicios">Servicios</button>
     <button class="tab-btn" data-tab="cerrajeros">Cerrajeros</button>
     <button class="tab-btn" data-tab="catalogo">Catálogo de Precios</button>
@@ -196,6 +197,77 @@
           </thead>
           <tbody id="historial-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Tab: Voz del bot ──────────────────────────────────────────────────── -->
+  <section id="tab-voz" class="tab-content">
+    <div class="voz-grid">
+      <div class="panel">
+        <div class="panel-head"><h3>🎛️ Ajustes de la voz</h3><span class="panel-hint" id="voz-estado-carga">Cargando…</span></div>
+
+        <div class="voz-ajuste">
+          <div class="voz-ajuste-head"><label for="voz-velocidad">Velocidad</label><strong id="voz-velocidad-val">—</strong></div>
+          <input type="range" id="voz-velocidad" min="0.7" max="1.2" step="0.01">
+          <div class="panel-hint">Más a la derecha = habla más rápido. <b>1,20 es el máximo que permite ElevenLabs.</b></div>
+        </div>
+
+        <div class="voz-ajuste">
+          <div class="voz-ajuste-head"><label for="voz-expresividad">Expresividad</label><strong id="voz-expresividad-val">—</strong></div>
+          <input type="range" id="voz-expresividad" min="0" max="70" step="1">
+          <div class="panel-hint">Izquierda = más plana y pareja · Derecha = más viva y con más subidas y bajadas (si se pasa, suena actuada).</div>
+        </div>
+
+        <div class="voz-ajuste">
+          <div class="voz-ajuste-head"><label for="voz-parecido">Parecido a la voz de Ángel</label><strong id="voz-parecido-val">—</strong></div>
+          <input type="range" id="voz-parecido" min="50" max="100" step="1">
+          <div class="panel-hint">Más alto = más parecida a la grabación original (también copia sus ruidos o tono apagado).</div>
+        </div>
+
+        <label class="switch voz-switch">
+          <input type="checkbox" id="voz-calido">
+          <span class="switch-slider"></span>
+          <span class="switch-texto">Tono cálido y amable <span class="panel-hint">(indicaciones de tono [warmly] / [friendly])</span></span>
+        </label>
+
+        <div class="voz-ajuste">
+          <label for="voz-saludo">Saludo al contestar</label>
+          <input type="text" id="voz-saludo" class="voz-input">
+          <div class="panel-hint"><code>{{saludo}}</code> se cambia solo por "buenos días", "buenas tardes" o "buenas noches" según la hora de Puerto Rico.</div>
+        </div>
+      </div>
+
+      <div class="panel-col">
+        <div class="panel">
+          <div class="panel-head"><h3>▶ Probar la voz</h3><span class="panel-hint">Escucha los ajustes antes de guardarlos</span></div>
+          <div class="voz-frases">
+            <button class="chip" data-frase="saludo">Saludo</button>
+            <button class="chip" data-frase="precio">Precio</button>
+            <button class="chip" data-frase="espera">Espera en línea</button>
+            <button class="chip" data-frase="datos">Pedir datos</button>
+            <button class="chip" data-frase="despedida">Despedida</button>
+          </div>
+          <textarea id="voz-texto-prueba" class="voz-input" rows="3"></textarea>
+          <div class="voz-acciones">
+            <button class="btn btn-primary" id="voz-escuchar">▶ Escuchar</button>
+            <audio id="voz-audio" controls></audio>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>🇵🇷 Pronunciación boricua</h3><span class="panel-hint">Cómo suena cada palabra (se escribe normal en las transcripciones)</span></div>
+          <div id="voz-pronunciacion" class="voz-pron"></div>
+          <button class="btn btn-ghost" id="voz-pron-agregar">+ Agregar palabra</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel voz-guardar-bar">
+      <span class="panel-hint" id="voz-cambios">Sin cambios</span>
+      <div class="voz-acciones">
+        <button class="btn btn-ghost" id="voz-descartar">Descartar cambios</button>
+        <button class="btn btn-primary" id="voz-guardar">💾 Guardar en el bot</button>
       </div>
     </div>
   </section>
@@ -428,5 +500,6 @@
 
   <script src="admin.js"></script>
   <script src="centro.js"></script>
+  <script src="voz.js"></script>
 </body>
 </html>

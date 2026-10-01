@@ -30,6 +30,7 @@ const { handleTwilioStream } = require('./elevenlabs-bridge');
 const centro = require('./centro');
 const consultas = require('./consultas');
 const dueno = require('./dueno');
+const voz = require('./voz');
 const crypto = require('crypto');
 const emitter = require('./events');
 
@@ -534,6 +535,19 @@ app.post('/api/centro/dueno/prueba', safe(async (_req, res) => {
 app.delete('/api/centro/dueno/dispositivos', safe(async (_req, res) => {
   await dueno.quitarAvisos();
   res.json({ ok: true });
+}));
+
+// ── Voz del bot (ajustes del agente de ElevenLabs desde el panel) ───────────
+app.get('/api/centro/voz', safe(async (_req, res) => {
+  res.json(await voz.leerVoz());
+}));
+app.put('/api/centro/voz', safe(async (req, res) => {
+  res.json(await voz.guardarVoz(req.body || {}));
+}));
+app.post('/api/centro/voz/probar', safe(async (req, res) => {
+  const mp3 = await voz.probarVoz(req.body || {});
+  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' });
+  res.send(mp3);
 }));
 
 // Panel: interruptor, configuración y respuestas a consultas
