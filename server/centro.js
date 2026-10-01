@@ -16,6 +16,9 @@ const emitter = require('./events');
 const EL_API = 'https://api.elevenlabs.io/v1';
 const TZ = 'America/Puerto_Rico';
 
+/** Quita las etiquetas de tono de la voz ([warmly], [friendly]…) del texto visible. */
+const sinEtiquetas = t => String(t || '').replace(/\[[a-z][a-z ]*\]\s*/gi, '').trim();
+
 /** callSid → llamada en curso */
 const activas = new Map();
 
@@ -57,7 +60,7 @@ function asociarConversacion(callSid, conversationId) {
 function agregarMensaje(callSid, rol, texto) {
   const l = activas.get(callSid);
   if (!l || !texto) return;
-  const msg = { rol, texto: String(texto), seg: Math.round((Date.now() - l.inicio) / 1000) };
+  const msg = { rol, texto: rol === 'agente' ? sinEtiquetas(texto) : String(texto), seg: Math.round((Date.now() - l.inicio) / 1000) };
   l.transcript.push(msg);
   emitter.emit('llamada_mensaje', { id: callSid, ...msg });
 }
@@ -67,7 +70,7 @@ function corregirUltimoAgente(callSid, texto) {
   const l = activas.get(callSid);
   if (!l || !texto) return;
   for (let i = l.transcript.length - 1; i >= 0; i--) {
-    if (l.transcript[i].rol === 'agente') { l.transcript[i].texto = texto; break; }
+    if (l.transcript[i].rol === 'agente') { l.transcript[i].texto = sinEtiquetas(texto); break; }
   }
   emitter.emit('llamada_actualizada', vistaActiva(l));
 }
@@ -129,7 +132,7 @@ function transcriptDesdeElevenLabs(conv) {
   const out = [];
   for (const t of conv.transcript || []) {
     for (const tc of t.tool_calls || []) out.push({ rol: 'herramienta', texto: tc.tool_name, seg: t.time_in_call_secs || 0 });
-    if (t.message) out.push({ rol: t.role === 'agent' ? 'agente' : 'cliente', texto: t.message.trim(), seg: t.time_in_call_secs || 0 });
+    if (t.message) out.push({ rol: t.role === 'agent' ? 'agente' : 'cliente', texto: t.role === 'agent' ? sinEtiquetas(t.message) : t.message.trim(), seg: t.time_in_call_secs || 0 });
   }
   return out;
 }
