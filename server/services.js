@@ -67,7 +67,7 @@ async function guardarServicio(datos) {
     const n = String(telefono).replace(/\D/g, '').length;
     return {
       exito: false,
-      mensaje: `El teléfono "${telefono}" tiene ${n} dígitos y debe tener 10 (ej. 787-555-1234). NO se guardó el servicio. Pídele al cliente con amabilidad que te lo repita completo ("Perdona, creo que se me escapó un número, ¿me repites el teléfono completo, por favor?"), repíteselo para confirmar y vuelve a llamar a guardar_servicio.`,
+      mensaje: `El teléfono "${telefono}" tiene ${n} dígitos y debe tener 10 (ej. 787-555-1234). NO se guardó el servicio. Pídele al cliente con amabilidad que te lo repita completo ("Perdone, creo que se me escapó un número, ¿me repite el teléfono completo, por favor?"), repíteselo para confirmar y vuelve a llamar a guardar_servicio.`,
     };
   }
 

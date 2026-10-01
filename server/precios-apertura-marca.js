@@ -177,7 +177,7 @@ function cotizarApertura(marca, modelo = '') {
       precio_min: PRECIOS.corvette.precio_desde, precio_varilla: null,
       precio_desde: PRECIOS.corvette.precio_desde, marca: 'Chevrolet Corvette',
       texto: `La apertura de un Corvette arranca desde $${PRECIOS.corvette.precio_desde}; es un trabajo especializado. ` +
-             `En unos minutos te llama uno de nuestros cerrajeros VIP para confirmarte.`,
+             `En unos minutos le llama uno de nuestros cerrajeros VIP para confirmarle.`,
     };
   }
 
@@ -192,8 +192,8 @@ function cotizarApertura(marca, modelo = '') {
     return {
       categoria, tamano, es_premium: true, precio_min: precio_desde,
       precio_varilla: null, precio_desde, marca: canon,
-      texto: `La apertura de tu ${nombre} arranca desde $${precio_desde}; es un trabajo muy especializado. ` +
-             `En unos minutos te llama uno de nuestros cerrajeros VIP para confirmarte.`,
+      texto: `La apertura de su ${nombre} arranca desde $${precio_desde}; es un trabajo muy especializado. ` +
+             `En unos minutos le llama uno de nuestros cerrajeros VIP para confirmarle.`,
     };
   }
 
@@ -202,8 +202,8 @@ function cotizarApertura(marca, modelo = '') {
     return {
       categoria, tamano, es_premium: true, precio_min: precio_varilla,
       precio_varilla, precio_desde: precio_cerradura_metro, marca: canon,
-      texto: `Para tu ${nombre}: $${precio_varilla} si se abre con varilla, o $${precio_cerradura_metro} fijo trabajando la cerradura en el área metro ` +
-             `(fuera del área metro te lo confirma el cerrajero). En unos minutos te llama uno de nuestros cerrajeros VIP.`,
+      texto: `Para su ${nombre}: $${precio_varilla} si se abre con varilla, o $${precio_cerradura_metro} fijo trabajando la cerradura en el área metro ` +
+             `(fuera del área metro se lo confirma el cerrajero). En unos minutos le llama uno de nuestros cerrajeros VIP.`,
     };
   }
 
@@ -216,8 +216,8 @@ function cotizarApertura(marca, modelo = '') {
       return {
         categoria: esCamion ? 'camion' : 'grande', tamano, es_premium: false, precio_min: null,
         precio_varilla: null, precio_desde: null, marca: canon,
-        texto: `Para una ${tipoTexto} como la tuya el precio te lo confirma nuestro cerrajero cuando te llame en unos minutos. ` +
-               `Déjame tomarte los datos para coordinarlo.`,
+        texto: `Para una ${tipoTexto} como la suya el precio se lo confirma nuestro cerrajero al llamarle en unos minutos. ` +
+               `Déjeme tomarle los datos para coordinarle.`,
       };
     }
     return {
@@ -225,7 +225,7 @@ function cotizarApertura(marca, modelo = '') {
       precio_varilla: null, precio_desde: null, marca: canon,
       texto: esCamion
         ? `La apertura de un camión son $${precio}.`
-        : `Para una ${tipoTexto} como la tuya la apertura son $${precio}.`,
+        : `Para una ${tipoTexto} como la suya la apertura son $${precio}.`,
     };
   }
 
@@ -233,7 +233,7 @@ function cotizarApertura(marca, modelo = '') {
   return {
     categoria: 'economica', tamano, es_premium: false, precio_min: precio_apertura,
     precio_varilla: null, precio_desde: null, marca: canon,
-    texto: `La apertura de tu ${nombre} son $${precio_apertura}.`,
+    texto: `La apertura de su ${nombre} son $${precio_apertura}.`,
   };
 }
 

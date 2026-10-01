@@ -56,9 +56,9 @@ const NOMBRE_TIPO = {
 };
 
 const NOMBRE_SERVICIO = {
-  todas_perdidas: 'hacerte una llave nueva',
-  copia: 'sacarte una copia de la llave',
-  programar: 'programarte la llave',
+  todas_perdidas: 'hacerle una llave nueva',
+  copia: 'sacarle una copia de la llave',
+  programar: 'programarle la llave',
 };
 
 // Marcas donde la llave tipo "Fobik" existe de verdad (grupo Chrysler).
@@ -265,7 +265,7 @@ function cotizarLlave(p = {}) {
   });
 
   if (!servicio || !SERVICIOS.includes(servicio)) {
-    return pregunta('¿Tienes alguna llave de ese carro que todavía funcione, o se te perdieron todas?',
+    return pregunta('¿Tiene alguna llave de ese carro que todavía funcione, o se le perdieron todas?',
       'servicio (todas_perdidas si no tiene ninguna; copia si tiene una y quiere otra; programar si ya compró la llave nueva)');
   }
 
@@ -276,22 +276,22 @@ function cotizarLlave(p = {}) {
     // escuchado por el acento / la línea ("Carreto"). El agente decide.
     return {
       exito: true, necesita: 'marca', precio: null, texto: '',
-      instrucciones: `No reconozco la marca "${marca}". Si no suena a una marca de carro real, seguro no se escuchó bien: pide con amabilidad que te la repita ("Perdona, no te escuché bien, ¿me repites la marca del carro, por favor?") y vuelve a llamar a cotizar_llave. Nunca corrijas al cliente. Si el cliente confirma que es una marca real que no está en la lista, dile: "Para ese carro la llave te la cotiza el cerrajero directamente; en un par de minutos te llama."`,
+      instrucciones: `No reconozco la marca "${marca}". Si no suena a una marca de carro real, seguro no se escuchó bien: pide con amabilidad que te la repita ("Perdone, no le escuché bien, ¿me repite la marca del carro, por favor?") y vuelve a llamar a cotizar_llave. Nunca corrijas al cliente. Si el cliente confirma que es una marca real que no está en la lista, dile: "Para ese carro la llave se la cotiza el cerrajero directamente; en un par de minutos le llama."`,
     };
   }
   if (!marcaKey || !modelo || !anioN) {
-    return pregunta('Déjame saber de qué año, marca y modelo es el carro.', 'anio, marca y modelo');
+    return pregunta('Déjeme saber de qué año, marca y modelo es el carro.', 'anio, marca y modelo');
   }
   const anioMax = new Date().getFullYear() + 1;
   if (anioN < 1950 || anioN > anioMax) {
-    return pregunta('Perdona, no te escuché bien el año. Déjame saber de qué año es el carro.', 'anio');
+    return pregunta('Perdone, no le escuché bien el año. Déjeme saber de qué año es el carro.', 'anio');
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
   const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };
   const nombreVehiculo = `${DATOS.nombres[marcaKey] || marca} ${DATOS.nombres[`${marcaKey}|${modeloKey}`] || modelo} ${anioN}`;
 
   if (ctx.tipos.size === 0) {
-    return confirma(`Para el ${nombreVehiculo} la llave te la cotiza el cerrajero directamente; en un par de minutos te llama.`);
+    return confirma(`Para el ${nombreVehiculo} la llave se la cotiza el cerrajero directamente; en un par de minutos le llama.`);
   }
 
   // Compatibilidad: si el agente ya manda la descripción final, se respeta.
@@ -300,7 +300,7 @@ function cotizarLlave(p = {}) {
 
   const r = resolverOpciones(ctx, id.descripcion);
   if (!r) {
-    return confirma(`Para ese tipo de llave del ${nombreVehiculo} el precio te lo confirma el cerrajero; en un par de minutos te llama.`);
+    return confirma(`Para ese tipo de llave del ${nombreVehiculo} el precio se lo confirma el cerrajero; en un par de minutos le llama.`);
   }
 
   const [principal, ...otras] = r.opciones;
@@ -309,15 +309,15 @@ function cotizarLlave(p = {}) {
 
   let texto, instrucciones;
   if (neg.nivel === 0) {
-    texto = `Para tu ${nombreVehiculo}, ${que} te sale en ${neg.precio} dólares.`;
+    texto = `Para su ${nombreVehiculo}, ${que} le sale en ${neg.precio} dólares.`;
     instrucciones = neg.fijo
       ? 'Precio fijo, no tiene rebaja. Si el cliente dice que está caro, usa argumentos de valor (técnico certificado, se hace en sitio, más barato que el dealer y sin grúa).'
       : `Si el cliente se queja del precio, NO bajes por tu cuenta: vuelve a llamar a cotizar_llave con los mismos datos y precio_actual ${neg.precio}.`;
   } else if (neg.ultimo) {
-    texto = `Mira, lo más que te lo puedo dejar es en ${neg.precio} dólares.`;
+    texto = `Mire, lo más que se lo puedo dejar es en ${neg.precio} dólares.`;
     instrucciones = `Este es el precio mínimo ($${neg.precio}). No bajes más aunque insista; si no acepta, ofrece dejar el servicio anotado sin compromiso.`;
   } else {
-    texto = `Mira, te lo puedo dejar en ${neg.precio} dólares.`;
+    texto = `Mire, se lo puedo dejar en ${neg.precio} dólares.`;
     instrucciones = `Si el cliente todavía se queja del precio, vuelve a llamar a cotizar_llave con los mismos datos y precio_actual ${neg.precio}.`;
   }
   if (neg.nivel === 0 && principal.nota && /confirma/.test(principal.nota)) {

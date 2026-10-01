@@ -2,7 +2,7 @@
 
 > **Fuente única del prompt:** [`prompt-telefono.txt`](prompt-telefono.txt). Ese archivo es el que tiene el agente de ElevenLabs y el que usa la versión web (`server/gemini.js` lo lee). Si cambias el prompt, edita ese archivo y súbelo al agente por API.
 
-> Cambios 2026-10-01: tutea al cliente con registro profesional (sin expresiones de la calle), entiende el acento boricua sin corregir al cliente, empatía corta, pide los datos con "déjame saber" / "¿me regalas…?".
+> Cambios 2026-10-01: el negocio se presenta como "Tu Cerrajero Puerto Rico"; trato de usted con registro profesional (sin expresiones de la calle), entiende el acento boricua sin corregir al cliente, empatía corta, pide los datos con "déjeme saber" / "¿me regala…?".
 
 La llamada telefónica entra por Twilio y se conecta al agente de **ElevenLabs
 Conversational AI** (`server/elevenlabs-bridge.js`). El "cerebro" de ese agente
@@ -23,7 +23,7 @@ para copiar y pegar, con el mismo comportamiento que la versión web (Gemini).
 ## 2. First message (primer saludo)
 
 ```
-Cerrajero Puerto Rico, {{saludo}}, ¿en qué te puedo ayudar?
+Tu Cerrajero Puerto Rico, {{saludo}}, ¿en qué le puedo ayudar?
 ```
 
 `{{saludo}}` lo manda el bridge según la hora de Puerto Rico (buenos días / buenas tardes / buenas noches).
