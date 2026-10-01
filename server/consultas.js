@@ -23,6 +23,9 @@ const emitter = require('./events');
 const dueno = require('./dueno');
 
 const ESPERA_POR_LLAMADA_MS = 15_000;
+// Mientras la consulta siga pendiente se repite el aviso (vuelve a vibrar y
+// sonar), como una alarma, hasta que el dueño responda o se acabe la espera.
+const REPETIR_AVISO_MS = 20_000;
 
 const AJUSTES_DEFECTO = {
   consulta_dueno: {
@@ -116,18 +119,32 @@ async function crearConsulta({ resumen, pregunta, conversation_id, numero_client
   let consulta = rows[0];
   emitter.emit('consulta_nueva', vista(consulta));
 
-  const enviados = await dueno.notificar({
-    titulo: '📞 Cliente esperando un precio',
+  const avisar = (repeticion = 0) => dueno.notificar({
+    titulo: repeticion ? `⏰ Cliente sigue esperando (${Math.round(repeticion * REPETIR_AVISO_MS / 1000)} s)` : '📞 Cliente esperando un precio',
     cuerpo: `${consulta.resumen}\n${consulta.pregunta}`,
     url: `/dueno#${id}`,
     tag: id,
   }).catch(err => { console.error('❌ Aviso al dueño:', err.message); return 0; });
+  const enviados = await avisar();
+  repetirAviso(id, ajustes.espera_max_seg, avisar);
   console.log(`📲 Consulta ${id} → app del dueño: ${enviados ? `✅ ${enviados} celular(es)` : '⚠️ sin celulares con avisos'}`);
   if (enviados) {
     ({ rows: [consulta] } = await pool.query('UPDATE consultas SET whatsapp_ok = true WHERE id = $1 RETURNING *', [id]));
     emitter.emit('consulta_actualizada', vista(consulta));
   }
   return { activa: true, consulta: vista(consulta), avisados: enviados };
+}
+
+/** Repite el aviso cada 20 s mientras la consulta siga pendiente. */
+function repetirAviso(id, esperaMaxSeg, avisar) {
+  let n = 0;
+  const t = setInterval(async () => {
+    n++;
+    const vencida = n * REPETIR_AVISO_MS >= esperaMaxSeg * 1000;
+    const { rows } = await pool.query('SELECT estado FROM consultas WHERE id = $1', [id]).catch(() => ({ rows: [] }));
+    if (vencida || rows[0]?.estado !== 'pendiente') return clearInterval(t);
+    avisar(n);
+  }, REPETIR_AVISO_MS);
 }
 
 /**

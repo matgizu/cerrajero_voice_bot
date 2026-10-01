@@ -16,7 +16,10 @@ self.addEventListener('push', event => {
       tag: d.tag || 'consulta',
       renotify: true,              // vuelve a sonar aunque haya otra igual
       requireInteraction: true,    // se queda en pantalla hasta que la toquen
-      vibrate: [400, 150, 400, 150, 400],
+      // Zumbido largo (Android lo respeta si la vibración está activa para el
+      // sitio; iPhone usa su vibración estándar de notificaciones)
+      vibrate: [600, 200, 600, 200, 600, 200, 900],
+      silent: false,
       data: { url: d.url || '/dueno/' },
     });
     // Si la app está abierta, que recargue la lista al instante

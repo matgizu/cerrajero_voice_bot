@@ -229,6 +229,25 @@ function enfocarHash() {
   }
 }
 
+// Con la app abierta: zumbido + sonido en bucle hasta que el dueño toque la
+// pantalla o ya no haya consultas pendientes.
+let alarma = null;
+function iniciarAlarma() {
+  if (alarma) return;
+  sonar();
+  alarma = setInterval(() => {
+    if (!consultas.some(c => c.estado === 'pendiente')) return detenerAlarma();
+    sonar();
+  }, 3000);
+}
+function detenerAlarma() {
+  if (!alarma) return;
+  clearInterval(alarma);
+  alarma = null;
+  if (navigator.vibrate) navigator.vibrate(0);
+}
+['touchstart', 'mousedown', 'keydown'].forEach(ev => window.addEventListener(ev, detenerAlarma, { passive: true }));
+
 function sonar() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -239,7 +258,7 @@ function sonar() {
       o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .22);
     });
   } catch (_) {}
-  if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+  if (navigator.vibrate) navigator.vibrate([600, 200, 600, 200, 900]);
 }
 
 async function cargar() {
@@ -248,7 +267,7 @@ async function cargar() {
     $('red').textContent = '● En línea';
     $('red').style.color = 'var(--ok)';
     const nuevas = consultas.filter(c => c.estado === 'pendiente' && !conocidas.has(c.id));
-    if (!primeraCarga && nuevas.length) sonar();
+    if (!primeraCarga && nuevas.length) iniciarAlarma();
     consultas.forEach(c => conocidas.add(c.id));
     primeraCarga = false;
     render();
