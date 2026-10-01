@@ -457,13 +457,9 @@ ${respondida ? '' : `<script>
 }
 
 // ── App del dueño (/dueno): PWA con notificaciones push ─────────────────────
-// Acceso con enlace secreto generado en el panel → cookie de sesión por celular.
+// Link fijo y sin autenticación por pedido del cliente (2026-10-01): cualquiera
+// con el link puede ver y responder consultas. Si se filtra, agregar una clave.
 const DIR_DUENO = path.join(__dirname, '../dueno');
-const COOKIE_DUENO = 'dueno_sesion';
-const leerCookie = (req, nombre) => {
-  const par = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith(`${nombre}=`));
-  return par ? decodeURIComponent(par.slice(nombre.length + 1)) : null;
-};
 
 // Express no distingue "/dueno" de "/dueno/": se redirige mirando la URL real
 // (el service worker controla el scope "/dueno/", con barra).
@@ -480,61 +476,36 @@ for (const archivo of ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-51
   });
 }
 
-app.get('/dueno/acceso/:token', safe(async (req, res) => {
-  const sesion = await dueno.canjearEnlace(req.params.token, req.headers['user-agent']);
-  if (!sesion) {
-    return res.status(403).type('html').send('<meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:24px"><h2>Este enlace ya no sirve</h2><p>Pídele al administrador un enlace nuevo desde el panel (Centro de mando → App del dueño).</p></body>');
-  }
-  res.cookie(COOKIE_DUENO, sesion, {
-    httpOnly: true, secure: req.secure, sameSite: 'lax', path: '/dueno', maxAge: 365 * 24 * 3600 * 1000,
-  });
-  res.redirect('/dueno/');
+app.get('/dueno/api/estado', safe(async (_req, res) => {
+  res.json({ ok: true, vapid: await dueno.clavePublica() });
 }));
-
-/** Solo celulares conectados con el enlace de acceso. */
-const soloDueno = (req, res, next) => {
-  dueno.sesionValida(leerCookie(req, COOKIE_DUENO))
-    .then(s => {
-      if (!s) return res.status(401).json({ error: 'sin acceso' });
-      req.dueno = { sesion: leerCookie(req, COOKIE_DUENO), avisos: s.avisos };
-      next();
-    })
-    .catch(err => res.status(500).json({ error: err.message }));
-};
-
-app.get('/dueno/api/estado', soloDueno, safe(async (req, res) => {
-  res.json({ ok: true, vapid: await dueno.clavePublica(), avisos: req.dueno.avisos });
-}));
-app.get('/dueno/api/consultas', soloDueno, safe(async (_req, res) => {
+app.get('/dueno/api/consultas', safe(async (_req, res) => {
   res.json(await consultas.listarConsultas(20));
 }));
-app.post('/dueno/api/consultas/:id/responder', soloDueno, safe(async (req, res) => {
+app.post('/dueno/api/consultas/:id/responder', safe(async (req, res) => {
   try {
     res.json(await consultas.responderConsulta({ id: req.params.id }, req.body?.respuesta, 'App del dueño'));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 }));
-app.post('/dueno/api/suscripcion', soloDueno, safe(async (req, res) => {
-  await dueno.guardarSuscripcion(req.dueno.sesion, req.body);
+app.post('/dueno/api/suscripcion', safe(async (req, res) => {
+  await dueno.guardarSuscripcion(req.body, req.headers['user-agent']);
   res.json({ ok: true });
 }));
-app.post('/dueno/api/prueba', soloDueno, safe(async (_req, res) => {
+app.post('/dueno/api/prueba', safe(async (_req, res) => {
   res.json({ enviados: await dueno.notificar({ titulo: '🔔 Aviso de prueba', cuerpo: 'Así te va a sonar cuando un cliente espere un precio.', tag: 'prueba' }) });
 }));
 
-// Panel: enlace de acceso, celulares conectados y prueba de aviso
-app.get('/api/centro/dueno', safe(async (_req, res) => {
-  res.json({ dispositivos: await dueno.listarDispositivos() });
-}));
-app.post('/api/centro/dueno/enlace', safe(async (req, res) => {
-  res.json({ url: await dueno.generarEnlace(urlPublica(req)) });
+// Panel: link de la app, celulares con avisos y prueba de aviso
+app.get('/api/centro/dueno', safe(async (req, res) => {
+  res.json({ url: `${urlPublica(req)}/dueno`, dispositivos: await dueno.listarDispositivos() });
 }));
 app.post('/api/centro/dueno/prueba', safe(async (_req, res) => {
   res.json({ enviados: await dueno.notificar({ titulo: '🔔 Aviso de prueba', cuerpo: 'Enviado desde el panel. Así suena cuando un cliente espera un precio.', tag: 'prueba' }) });
 }));
 app.delete('/api/centro/dueno/dispositivos', safe(async (_req, res) => {
-  await dueno.desconectarTodos();
+  await dueno.quitarAvisos();
   res.json({ ok: true });
 }));
 

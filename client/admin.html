@@ -130,18 +130,18 @@
           <span class="panel-hint" id="dueno-dispositivos">Cargando…</span>
         </div>
         <p class="panel-hint">
-          El dueño responde desde su celular en una página propia y le <b>suena una notificación</b> cuando el bot necesita un precio, aunque tenga la app cerrada.
-          Genera el enlace de acceso y ábrelo en su celular (Android: Chrome · iPhone: Safari → Compartir → <i>Agregar a pantalla de inicio</i>). Luego, en la app, toca <b>Activar avisos</b>.
+          El dueño responde desde su celular en esta página y le <b>suena una notificación</b> cuando el bot necesita un precio, aunque tenga la app cerrada.
+          Que la abra en su celular (Android: Chrome · iPhone: Safari → Compartir → <i>Agregar a pantalla de inicio</i>) y toque <b>Activar avisos</b>.
         </p>
-        <div class="dueno-acciones">
-          <button class="btn btn-primary" id="dueno-enlace">🔗 Generar enlace de acceso</button>
-          <button class="btn btn-ghost" id="dueno-prueba">🔔 Enviar aviso de prueba</button>
-          <button class="btn btn-ghost" id="dueno-desconectar">Desconectar celulares</button>
-        </div>
-        <div class="dueno-link" id="dueno-link" hidden>
-          <input type="text" id="dueno-link-url" readonly>
+        <div class="dueno-link">
+          <input type="text" id="dueno-link-url" readonly value="">
           <button class="btn btn-primary" id="dueno-link-copiar">Copiar</button>
           <button class="btn btn-ghost" id="dueno-link-compartir">Compartir</button>
+          <a class="btn btn-ghost" id="dueno-link-abrir" href="/dueno/" target="_blank" rel="noopener">Abrir</a>
+        </div>
+        <div class="dueno-acciones">
+          <button class="btn btn-ghost" id="dueno-prueba">🔔 Enviar aviso de prueba</button>
+          <button class="btn btn-ghost" id="dueno-desconectar">Quitar avisos de todos los celulares</button>
         </div>
       </div>
       <div class="panel-hint consulta-ayuda">

@@ -1,10 +1,10 @@
 'use strict';
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  APP DEL DUEÑO (/dueno) — acceso por enlace y notificaciones push
+//  APP DEL DUEÑO (/dueno) — link fijo y notificaciones push
 //  ------------------------------------------------------------------------------
-//  - Desde el panel se genera un enlace de acceso secreto. El dueño lo abre una
-//    vez en su celular y queda con una cookie de sesión (no escribe contraseña).
+//  - Link fijo y público por ahora (pedido del cliente 2026-10-01): siempre la
+//    misma app en /dueno/, sin autenticación.
 //  - La página es una PWA: en Android avisa desde Chrome; en iPhone hay que
 //    agregarla a la pantalla de inicio (requisito de Apple para Web Push).
 //  - Las claves VAPID se generan solas la primera vez y se guardan en la BD.
@@ -49,42 +49,16 @@ async function clavePublica() {
   return (await claves()).publicKey;
 }
 
-// ── Enlace de acceso y sesiones ──────────────────────────────────────────────
+// ── Celulares con avisos ─────────────────────────────────────────────────────
+// Cada celular se identifica por el endpoint de su suscripción push.
 
-/** Genera un enlace nuevo (el anterior deja de servir; los celulares ya conectados siguen). */
-async function generarEnlace(baseUrl) {
-  const token = crypto.randomBytes(24).toString('base64url');
-  await escribir('dueno_acceso', { hash: sha256(token), creado: new Date().toISOString() });
-  return `${baseUrl}/dueno/acceso/${token}`;
-}
-
-/** Valida el token del enlace y crea una sesión para ese celular. */
-async function canjearEnlace(token, nombre) {
-  const acceso = await leer('dueno_acceso');
-  if (!acceso?.hash) return null;
-  const a = Buffer.from(acceso.hash), b = Buffer.from(sha256(token));
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  const sesion = crypto.randomBytes(32).toString('base64url');
-  await pool.query(
-    'INSERT INTO dueno_dispositivos (sesion, nombre) VALUES ($1, $2)',
-    [sha256(sesion), String(nombre || '').slice(0, 120)]
-  );
-  return sesion;
-}
-
-/** Sesión del dueño desde la cookie (se guarda solo el hash en la BD). */
-async function sesionValida(sesion) {
-  if (!sesion) return null;
-  const { rows } = await pool.query(
-    'UPDATE dueno_dispositivos SET ultimo_uso = NOW() WHERE sesion = $1 RETURNING id, suscripcion IS NOT NULL AS avisos',
-    [sha256(sesion)]
-  );
-  return rows[0] || null;
-}
-
-async function guardarSuscripcion(sesion, suscripcion) {
+async function guardarSuscripcion(suscripcion, nombre) {
   if (!suscripcion?.endpoint) throw new Error('Suscripción inválida');
-  await pool.query('UPDATE dueno_dispositivos SET suscripcion = $2 WHERE sesion = $1', [sha256(sesion), JSON.stringify(suscripcion)]);
+  await pool.query(
+    `INSERT INTO dueno_dispositivos (sesion, suscripcion, nombre) VALUES ($1, $2, $3)
+     ON CONFLICT (sesion) DO UPDATE SET suscripcion = EXCLUDED.suscripcion, ultimo_uso = NOW()`,
+    [sha256(suscripcion.endpoint), JSON.stringify(suscripcion), String(nombre || '').slice(0, 120)]
+  );
 }
 
 async function listarDispositivos() {
@@ -94,9 +68,9 @@ async function listarDispositivos() {
   return rows;
 }
 
-async function desconectarTodos() {
+/** Borra todos los celulares registrados (dejan de recibir avisos hasta volver a activarlos). */
+async function quitarAvisos() {
   await pool.query('DELETE FROM dueno_dispositivos');
-  await escribir('dueno_acceso', {});
 }
 
 // ── Notificaciones ───────────────────────────────────────────────────────────
@@ -129,11 +103,8 @@ async function notificar({ titulo, cuerpo, url = '/dueno', tag }) {
 
 module.exports = {
   clavePublica,
-  generarEnlace,
-  canjearEnlace,
-  sesionValida,
   guardarSuscripcion,
   listarDispositivos,
-  desconectarTodos,
+  quitarAvisos,
   notificar,
 };

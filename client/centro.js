@@ -444,24 +444,15 @@
 
   async function cargarDueno() {
     try {
-      const { dispositivos } = await (await fetch('/api/centro/dueno')).json();
+      const { url, dispositivos } = await (await fetch('/api/centro/dueno')).json();
+      $('dueno-link-url').value = url;
       duenoConAvisos = dispositivos.filter(d => d.avisos).length;
-      $('dueno-dispositivos').innerHTML = dispositivos.length
-        ? `${dispositivos.length} celular${dispositivos.length === 1 ? '' : 'es'} conectado${dispositivos.length === 1 ? '' : 's'} · ` +
-          (duenoConAvisos ? `<span style="color:var(--success)">🔔 ${duenoConAvisos} con avisos activos</span>` : '<span style="color:var(--warning)">ninguno con avisos activos</span>')
-        : 'Ningún celular conectado todavía';
+      $('dueno-dispositivos').innerHTML = duenoConAvisos
+        ? `<span style="color:var(--success)">🔔 ${duenoConAvisos} celular${duenoConAvisos === 1 ? '' : 'es'} con avisos activos</span>`
+        : '<span style="color:var(--warning)">Ningún celular con avisos activos todavía</span>';
     } catch (_) {}
   }
 
-  $('dueno-enlace').addEventListener('click', async () => {
-    if (!confirm('Se genera un enlace nuevo y el anterior deja de servir (los celulares ya conectados siguen funcionando). ¿Continuar?')) return;
-    try {
-      const { url } = await (await fetch('/api/centro/dueno/enlace', { method: 'POST' })).json();
-      $('dueno-link').hidden = false;
-      $('dueno-link-url').value = url;
-      $('dueno-link-url').select();
-    } catch (_) { if (typeof showToast === 'function') showToast('No se pudo generar el enlace', 'error'); }
-  });
   $('dueno-link-copiar').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('dueno-link-url').value); showToast('Enlace copiado', 'info'); }
     catch (_) { $('dueno-link-url').select(); document.execCommand('copy'); showToast('Enlace copiado', 'info'); }
@@ -478,11 +469,10 @@
     } catch (_) { showToast('No se pudo enviar', 'error'); }
   });
   $('dueno-desconectar').addEventListener('click', async () => {
-    if (!confirm('Se desconectan todos los celulares del dueño y el enlace actual deja de servir. ¿Continuar?')) return;
+    if (!confirm('Ningún celular va a recibir avisos hasta que vuelvan a tocar "Activar avisos" en la app. ¿Continuar?')) return;
     await fetch('/api/centro/dueno/dispositivos', { method: 'DELETE' });
-    $('dueno-link').hidden = true;
     cargarDueno();
-    showToast('Celulares desconectados', 'info');
+    showToast('Avisos quitados de todos los celulares', 'info');
   });
 
   // ── Controles ───────────────────────────────────────────────────────────────
