@@ -16,7 +16,7 @@ para copiar y pegar, con el mismo comportamiento que la versión web (Gemini).
 ## 1. Voz
 
 - Voz clonada de Ángel Toledo: **"Ángel - Cerrajero Puerto Rico"** (`4gbXHqcXGAeTEHLn4vP2`, Instant Voice Clone).
-- Modelo `eleven_v3_conversational`, modo expresivo apagado, estabilidad 0.55 (natural: ni plano ni exagerado), similitud 0.85, velocidad 1.15.
+- Modelo `eleven_v3_conversational`, modo expresivo apagado, estabilidad 0.48 (cálida, sin exagerar), similitud 0.85, velocidad 1.15.
 - Audio `ulaw_8000` de entrada y salida (formato telefónico; el bridge lo pasa directo a Twilio).
 - LLM `gemini-3.5-flash-lite` (el más rápido en las pruebas: ~0.5 s por turno).
 
