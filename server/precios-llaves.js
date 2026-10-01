@@ -280,11 +280,11 @@ function cotizarLlave(p = {}) {
     };
   }
   if (!marcaKey || !modelo || !anioN) {
-    return pregunta('¿De qué año, marca y modelo es el carro?', 'anio, marca y modelo');
+    return pregunta('Déjeme saber de qué año, marca y modelo es el carro.', 'anio, marca y modelo');
   }
   const anioMax = new Date().getFullYear() + 1;
   if (anioN < 1950 || anioN > anioMax) {
-    return pregunta('Perdone, no le escuché bien el año, ¿de qué año es el carro?', 'anio');
+    return pregunta('Perdone, no le escuché bien el año. Déjeme saber de qué año es el carro.', 'anio');
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
   const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };
