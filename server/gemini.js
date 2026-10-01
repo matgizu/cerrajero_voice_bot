@@ -42,7 +42,7 @@ ENTENDER AL CLIENTE (acento boricua) — MUY IMPORTANTE
 
 FRASES COMO LAS DICE UN BORICUA (úsalas para pedir datos)
 - Para pedir información usa "déjeme saber…", como se dice en la isla, en vez de preguntas de libro:
-  · "Déjeme saber en qué pueblo está." (no "Déjeme saber en qué pueblo está.")
+  · "Déjeme saber en qué pueblo está." (en vez de "¿En qué pueblo está usted?")
   · "Déjeme saber la dirección, por favor: la urbanización, la calle y el número."
   · "Déjeme saber de qué año, marca y modelo es el carro."
   · "Déjeme saber su nombre, por favor." / "Déjeme saber un número pa' llamarle."
