@@ -489,6 +489,33 @@ app.post('/dueno/api/consultas/:id/responder', safe(async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 }));
+// Respuesta por voz: el celular graba y aquí se transcribe con ElevenLabs
+// (Scribe). No se usa el dictado del navegador porque en iPhone no funciona
+// dentro de las apps agregadas a la pantalla de inicio.
+app.post('/dueno/api/transcribir',
+  express.raw({ type: ['audio/*', 'video/*', 'application/octet-stream'], limit: '15mb' }),
+  safe(async (req, res) => {
+    if (!req.body?.length) return res.status(400).json({ error: 'No llegó el audio' });
+    const tipo = (req.headers['content-type'] || 'audio/webm').split(';')[0];
+    const ext = { 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav' }[tipo] || 'webm';
+    let ultimoError = '';
+    for (const modelo of ['scribe_v2', 'scribe_v1']) {
+      const form = new FormData();
+      form.append('model_id', modelo);
+      form.append('language_code', 'spa');
+      form.append('tag_audio_events', 'false');
+      form.append('file', new Blob([req.body], { type: tipo }), `respuesta.${ext}`);
+      const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+        method: 'POST', headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY || '' }, body: form,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) return res.json({ texto: String(d.text || '').trim() });
+      ultimoError = d.detail?.message || d.detail || `ElevenLabs ${r.status}`;
+    }
+    res.status(502).json({ error: `No se pudo transcribir: ${ultimoError}` });
+  })
+);
+
 app.post('/dueno/api/suscripcion', safe(async (req, res) => {
   await dueno.guardarSuscripcion(req.body, req.headers['user-agent']);
   res.json({ ok: true });

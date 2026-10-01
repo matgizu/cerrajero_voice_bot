@@ -46,6 +46,13 @@
   .espera { font-weight:700; color:var(--alerta); font-variant-numeric:tabular-nums; }
   .cliente { margin-left:auto; color:var(--tenue); font-size:13px; }
   .caso { font-size:16px; margin:4px 0 6px; } .pregunta { font-size:17px; font-weight:700; margin-bottom:10px; }
+  .mic { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:72px; margin:4px 0 12px;
+    background:rgba(240,180,41,.12); color:var(--acento); border:2px solid var(--acento); border-radius:16px; font-size:19px; font-weight:800; }
+  .mic .ico { font-size:30px; line-height:1; }
+  .mic.grabando { background:var(--peligro); border-color:var(--peligro); color:#fff; animation:pulso 1.2s infinite; }
+  .mic.procesando { background:var(--card2); border-color:var(--borde); color:var(--tenue); }
+  @keyframes pulso { 0%,100% { box-shadow:0 0 0 0 rgba(248,81,73,.55); } 50% { box-shadow:0 0 0 10px rgba(248,81,73,0); } }
+  .nota-voz { font-size:13px; color:var(--tenue); margin:-6px 0 10px; text-align:center; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .chip { background:var(--card2); color:var(--texto); border:1px solid var(--borde); padding:8px 12px; border-radius:20px; font-size:14px; font-weight:600; }
   textarea { width:100%; min-height:84px; background:#0b0f14; color:var(--texto); border:1px solid var(--borde); border-radius:12px; padding:12px; font:inherit; resize:vertical; }
@@ -179,6 +186,7 @@ function tarjetaPendiente(c) {
       <span class="cliente">${esc(fmtTel(c.numero_cliente))}</span></div>
     <div class="caso">${esc(c.resumen)}</div>
     <div class="pregunta">${esc(c.pregunta)}</div>
+    <button class="mic" data-mic="${esc(c.id)}"><span class="ico">🎤</span><span class="txt">Responder por voz</span></button>
     <div class="chips">${MONTOS.map(m => `<button class="chip" data-monto="${m}" data-id="${esc(c.id)}">$${m}</button>`).join('')}</div>
     <textarea data-id="${esc(c.id)}" placeholder="Ej.: Dile que son 90 con varilla. Si hay que trabajar la cerradura son 150.">${esc(borradores[c.id] || '')}</textarea>
     <div class="fila-botones"><button class="btn btn-acento" data-enviar="${esc(c.id)}">Enviar respuesta</button></div>
@@ -190,7 +198,7 @@ function render() {
   const pend = consultas.filter(c => c.estado === 'pendiente');
   const otras = consultas.filter(c => c.estado !== 'pendiente').slice(0, 10);
   // No re-pintar mientras escribe en una tarjeta (perdería el foco)
-  const escribiendo = document.activeElement?.tagName === 'TEXTAREA';
+  const escribiendo = document.activeElement?.tagName === 'TEXTAREA' || grabacion !== null;
   if (!escribiendo) {
     $('pendientes').innerHTML = pend.length ? pend.map(tarjetaPendiente).join('')
       : '<div class="vacio"><span class="grande">✅</span>No hay clientes esperando un precio.</div>';
@@ -258,8 +266,90 @@ async function enviar(id, texto) {
   }
 }
 
+// ── Respuesta por voz ────────────────────────────────────────────────────────
+// Graba con el micrófono y el servidor transcribe (ElevenLabs). El texto queda
+// en el cuadro para revisarlo y tocar Enviar.
+let grabacion = null;   // { id, recorder, chunks, stream, t0, timer, boton }
+const MAX_SEG_VOZ = 45;
+
+function pintarMic(boton, estado, extra = '') {
+  boton.classList.remove('grabando', 'procesando');
+  if (estado) boton.classList.add(estado);
+  const [ico, txt] = {
+    '': ['🎤', 'Responder por voz'],
+    grabando: ['⏹', `Grabando ${extra} · toca para terminar`],
+    procesando: ['⏳', 'Escribiendo lo que dijiste…'],
+  }[estado];
+  boton.querySelector('.ico').textContent = ico;
+  boton.querySelector('.txt').textContent = txt;
+}
+
+async function empezarGrabacion(id, boton) {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    toast('Este navegador no permite grabar. Usa el teclado o el dictado del teclado.', 4000);
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const tipo = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported?.(t)) || '';
+    const recorder = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+    grabacion = { id, recorder, chunks: [], stream, t0: Date.now(), boton };
+    recorder.ondataavailable = e => { if (e.data.size) grabacion?.chunks.push(e.data); };
+    recorder.onstop = () => transcribir();
+    recorder.start();
+    if (navigator.vibrate) navigator.vibrate(60);
+    pintarMic(boton, 'grabando', '0:00');
+    grabacion.timer = setInterval(() => {
+      const seg = Math.round((Date.now() - grabacion.t0) / 1000);
+      pintarMic(boton, 'grabando', `0:${String(seg).padStart(2, '0')}`);
+      if (seg >= MAX_SEG_VOZ) terminarGrabacion();
+    }, 500);
+  } catch (err) {
+    grabacion = null;
+    toast(err.name === 'NotAllowedError' ? 'Permite el micrófono para responder por voz (ajustes del navegador).' : 'No se pudo usar el micrófono.', 4500);
+  }
+}
+
+function terminarGrabacion() {
+  if (!grabacion || grabacion.recorder.state !== 'recording') return;
+  clearInterval(grabacion.timer);
+  pintarMic(grabacion.boton, 'procesando');
+  grabacion.recorder.stop();
+  grabacion.stream.getTracks().forEach(t => t.stop());
+}
+
+async function transcribir() {
+  const { id, chunks, recorder, boton } = grabacion;
+  const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+  try {
+    if (blob.size < 1500) throw new Error('No se escuchó nada, intenta otra vez.');
+    const r = await fetch('/dueno/api/transcribir', { method:'POST', headers:{ 'Content-Type': blob.type }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo transcribir');
+    if (!d.texto) throw new Error('No se entendió, intenta otra vez.');
+    const ta = document.querySelector(`textarea[data-id="${CSS.escape(id)}"]`);
+    if (ta) {
+      ta.value = d.texto;
+      borradores[id] = d.texto;
+    }
+    const enviar = document.querySelector(`[data-enviar="${CSS.escape(id)}"]`);
+    enviar?.scrollIntoView({ behavior:'smooth', block:'center' });
+    toast('✍️ Revisa el texto y toca “Enviar respuesta”');
+  } catch (err) {
+    toast(err.message, 3500);
+  } finally {
+    pintarMic(boton, '');
+    grabacion = null;
+  }
+}
+
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.mic) {
+    if (grabacion?.id === t.dataset.mic) terminarGrabacion();
+    else if (!grabacion) empezarGrabacion(t.dataset.mic, t);
+    return;
+  }
   if (t.dataset.enviar) {
     enviar(t.dataset.enviar, document.querySelector(`textarea[data-id="${CSS.escape(t.dataset.enviar)}"]`).value);
   } else if (t.dataset.rapida) {
