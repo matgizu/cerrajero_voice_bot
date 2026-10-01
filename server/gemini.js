@@ -28,7 +28,7 @@ const VOICE = process.env.AGENT_VOICE || 'Zephyr';
 const PROMPT_BASE = fs.readFileSync(path.join(__dirname, '../docs/prompt-telefono.txt'), 'utf8')
   .replace(
     'FLUJO DE LA LLAMADA (ya saludaste con el primer mensaje; sigue natural)',
-    'FLUJO DE LA LLAMADA\n0. SALUDO INICIAL: tú hablas primero, apenas conecte la llamada, exactamente así: "¡Tu Cerrajero Puerto Rico, {{SALUDO}}! ¿En qué le puedo ayudar?" — y nada más; espera a que el cliente responda.'
+    'FLUJO DE LA LLAMADA\n0. SALUDO INICIAL: tú hablas primero, apenas conecte la llamada, exactamente así: "Tu Cerrajero Puerto Rico, {{SALUDO}}, ¿en qué le puedo ayudar?" — y nada más; espera a que el cliente responda.'
   );
 
 // Fallback si la BD no responde al armar la sesión (mismos valores del seed)
