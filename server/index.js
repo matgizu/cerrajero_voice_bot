@@ -229,6 +229,19 @@ app.get('/api/centro/llamadas/:id/audio', safe(async (req, res) => {
   res.send(Buffer.from(await r.arrayBuffer()));
 }));
 
+// Llamada de prueba desde el panel (solo a números verificados en Twilio)
+app.get('/api/centro/numeros-prueba', safe(async (_req, res) => {
+  res.json(await centro.numerosPrueba());
+}));
+
+app.post('/api/centro/llamar-prueba', safe(async (req, res) => {
+  try {
+    res.json(await centro.llamarPrueba(String(req.body?.numero || '')));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}));
+
 app.post('/api/centro/importar', safe(async (_req, res) => {
   res.json({ importadas: await centro.importarHistorial(200) });
 }));

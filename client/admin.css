@@ -1015,3 +1015,10 @@ body {
 }
 .historial-table td:last-child, .historial-table th:last-child { box-shadow: none; }
 .modal:has(.detalle-metricas) { max-width: 760px; }
+
+/* Llamada de prueba */
+.prueba-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.prueba-titulo { display: flex; flex-direction: column; gap: 2px; }
+.prueba-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-llamar small { opacity: .75; font-weight: 500; margin-left: 4px; }
+.btn-llamar:disabled { opacity: .6; cursor: wait; }

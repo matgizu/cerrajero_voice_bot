@@ -283,6 +283,52 @@ async function datosExternos() {
   return out;
 }
 
+// ── Llamadas de prueba desde el panel ────────────────────────────────────────
+// Solo a números verificados en Twilio (Verified Caller IDs): así el botón no
+// sirve para llamar a cualquiera y los números no quedan escritos en el código
+// (el repo es público).
+
+function twilio(ruta, opciones = {}) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const tok = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !tok) throw new Error('Faltan TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN');
+  return fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}${ruta}`, {
+    ...opciones,
+    headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64'), ...(opciones.headers || {}) },
+  }).then(async r => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.message || `Twilio ${r.status}`);
+    return data;
+  });
+}
+
+async function numerosPrueba() {
+  const d = await twilio('/OutgoingCallerIds.json?PageSize=50');
+  return (d.outgoing_caller_ids || []).map(c => ({ numero: c.phone_number, nombre: c.friendly_name }));
+}
+
+let numeroDelBot = process.env.TWILIO_PHONE_NUMBER || null;
+
+async function llamarPrueba(numero) {
+  const permitidos = await numerosPrueba();
+  if (!permitidos.some(n => n.numero === numero)) {
+    throw new Error('Ese número no está verificado en Twilio');
+  }
+  if (!numeroDelBot) {
+    const d = await twilio('/IncomingPhoneNumbers.json?PageSize=1');
+    numeroDelBot = d.incoming_phone_numbers?.[0]?.phone_number;
+    if (!numeroDelBot) throw new Error('No encontré el número del bot en Twilio');
+  }
+  const base = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('Falta PUBLIC_URL');
+  const r = await twilio('/Calls.json', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ To: numero, From: numeroDelBot, Url: `${base}/twilio/incoming`, Method: 'POST' }),
+  });
+  return { sid: r.sid, estado: r.status, numero };
+}
+
 async function resumen() {
   const hoyCond = `(inicio AT TIME ZONE '${TZ}')::date = (NOW() AT TIME ZONE '${TZ}')::date`;
   const mesCond = `date_trunc('month', inicio AT TIME ZONE '${TZ}') = date_trunc('month', NOW() AT TIME ZONE '${TZ}')`;
@@ -328,4 +374,6 @@ module.exports = {
   obtenerLlamada,
   conversationIdDe,
   resumen,
+  numerosPrueba,
+  llamarPrueba,
 };

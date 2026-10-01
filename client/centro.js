@@ -287,11 +287,59 @@
   document.addEventListener('sse-conectado', e => registrar(e.detail));
   registrar(window.__sse);
 
+  // ── Llamadas de prueba ──────────────────────────────────────────────────────
+  async function cargarNumerosPrueba() {
+    const cont = $('prueba-botones');
+    try {
+      const r = await fetch('/api/centro/numeros-prueba');
+      if (!r.ok) throw new Error();
+      const numeros = await r.json();
+      if (!numeros.length) {
+        cont.innerHTML = '<span class="panel-hint">No hay números verificados en Twilio.</span>';
+        return;
+      }
+      cont.innerHTML = numeros.map(n => {
+        const tel = fmtTelefono(n.numero);
+        // En Twilio el "friendly name" a veces es el mismo número: solo se muestra si es un nombre.
+        const nombre = n.nombre && /[a-záéíóúñ]/i.test(n.nombre) ? esc(n.nombre) : '';
+        return `<button class="btn btn-primary btn-llamar" data-numero="${esc(n.numero)}">
+          📞 Llamar ${nombre ? `a ${nombre} <small>${tel}</small>` : tel}
+        </button>`;
+      }).join('');
+      cont.querySelectorAll('.btn-llamar').forEach(b => b.addEventListener('click', () => llamar(b)));
+    } catch (_) {
+      cont.innerHTML = '<span class="panel-hint">No pude cargar los números de Twilio.</span>';
+    }
+  }
+
+  async function llamar(boton) {
+    const numero = boton.dataset.numero;
+    if (!confirm(`¿Llamar ahora al ${numero}? El bot va a marcar y la llamada se cobra del saldo de Twilio.`)) return;
+    const original = boton.innerHTML;
+    boton.disabled = true;
+    boton.innerHTML = '📞 Marcando…';
+    try {
+      const r = await fetch('/api/centro/llamar-prueba', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Error');
+      if (typeof showToast === 'function') showToast(`📞 Llamando al ${numero}… contesta y marca una tecla`, 'info');
+    } catch (err) {
+      if (typeof showToast === 'function') showToast(`No se pudo llamar: ${err.message}`, 'error');
+    }
+    // Evita doble clic mientras la llamada arranca
+    setTimeout(() => { boton.disabled = false; boton.innerHTML = original; }, 15_000);
+  }
+
   // ── Controles ───────────────────────────────────────────────────────────────
   $('historial-buscar').addEventListener('input', e => { filtroHistorial = e.target.value.trim(); renderHistorial(); });
   $('historial-recargar').addEventListener('click', () => { cargarResumen(); cargarHistorial(); });
 
   cargarResumen();
   cargarHistorial();
+  cargarNumerosPrueba();
   setInterval(cargarResumen, 20_000);
 })();
