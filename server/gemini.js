@@ -109,7 +109,7 @@ const TOOLS = [
             },
             anio: {
               type: 'STRING',
-              description: 'Año del vehículo (ej. "2016"). Los de 1998 o antes no se cotizan por teléfono.'
+              description: 'Año del vehículo (ej. "2016"). Los de 2001 o antes no se cotizan por teléfono.'
             },
             tipo_cerradura: {
               type: 'STRING',

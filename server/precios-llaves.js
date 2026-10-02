@@ -23,6 +23,11 @@ const DATOS = require('./data/precios-llaves.json');
 
 const SERVICIOS = ['todas_perdidas', 'copia', 'programar'];
 
+// Cliente 2026-10-01: los carros de este año o antes no se cotizan por teléfono
+// (ni apertura ni llaves); el precio lo da el dueño (consulta) o el técnico.
+// Antes era 1998; el cliente lo subió a 2001. Lo usa también services.js.
+const ANIO_MAXIMO_SIN_COTIZAR = 2001;
+
 /**
  * Descripción de la llave → tipos técnicos del Excel, en orden de preferencia.
  * La tabla del cliente no trae "remote"/"flip" para todas las marcas; una llave
@@ -295,8 +300,8 @@ function cotizarLlave(p = {}) {
   if (anioN < 1950 || anioN > anioMax) {
     return pregunta('Perdone, no le escuché bien el año. Déjeme saber de qué año es el carro.', 'anio');
   }
-  // Cliente 2026-10-01: carros de 1998 o antes → precio específico por el técnico/dueño.
-  if (anioN <= 1998) {
+  // Carros viejos: sin cotización por teléfono y sin preguntas de tipo de llave.
+  if (anioN <= ANIO_MAXIMO_SIN_COTIZAR) {
     return confirma(`Para un carro del ${anioN} el precio se lo da el técnico específicamente.`);
   }
   const modeloKey = resolverModelo(marcaKey, modelo);
@@ -354,4 +359,4 @@ function cotizarLlave(p = {}) {
   };
 }
 
-module.exports = { cotizarLlave, TIPOS_LLAVE, SERVICIOS };
+module.exports = { cotizarLlave, TIPOS_LLAVE, SERVICIOS, ANIO_MAXIMO_SIN_COTIZAR };

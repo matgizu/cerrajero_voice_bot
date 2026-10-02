@@ -4,7 +4,7 @@ const { pool } = require('./db');
 const { asignarCerrajero, asignarEspecialista, marcarUltimoServicio, getCerrajero } = require('./cerrajeros');
 const { cotizarApertura, esPremium } = require('./precios-apertura-marca');
 const { cotizarAperturaCerradura } = require('./precios-apertura-cerradura');
-const { cotizarLlave } = require('./precios-llaves');
+const { cotizarLlave, ANIO_MAXIMO_SIN_COTIZAR } = require('./precios-llaves');
 const { notificarCerrajero } = require('./whatsapp');
 const emitter = require('./events');
 
@@ -230,9 +230,8 @@ function anioCarro(anio) {
   return n < 100 ? (n < 50 ? 2000 + n : 1900 + n) : n;
 }
 
-// Cliente 2026-10-01: carros de 1998 o antes no se cotizan por teléfono; el
-// técnico (o el dueño, si la consulta está activa) da el precio específico.
-const ANIO_MAXIMO_SIN_COTIZAR = 1998;
+// Carros de ANIO_MAXIMO_SIN_COTIZAR (2001) o antes no se cotizan por teléfono:
+// el técnico (o el dueño, si la consulta está activa) da el precio específico.
 
 async function consultarPrecio({ tipo_servicio, marca, modelo, anio, tipo_cerradura, es_emergencia } = {}) {
   if (tipo_servicio === 'emergencia_vehiculo' || marca) {
