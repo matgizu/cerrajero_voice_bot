@@ -18,7 +18,8 @@ para copiar y pegar, con el mismo comportamiento que la versión web (Gemini).
 - Voz clonada de Ángel Toledo: **"Ángel - Cerrajero Puerto Rico"** (`4gbXHqcXGAeTEHLn4vP2`, Instant Voice Clone).
 - Modelo `eleven_v3_conversational`, modo expresivo apagado, estabilidad 0.5 + modo expresivo limitado a [warmly] y [friendly] (tono cálido y amable), similitud 0.85, velocidad 1.15.
 - Audio `ulaw_8000` de entrada y salida (formato telefónico; el bridge lo pasa directo a Twilio).
-- LLM `gemini-3.5-flash-lite` (el más rápido en las pruebas: ~0.5 s por turno).
+- LLM `claude-sonnet-5-5` (desde 2026-10-10; se cambia desde el panel → Voz del bot → Cómo escucha). Antes `gemini-3.5-flash-lite`: era el más rápido (~0.5 s por turno) pero se perdía en los bucles de herramientas, inventó un precio durante una consulta al dueño y no entendía el habla boricua. Al cambiar de modelo hay que quitar `reasoning_effort` (solo lo aceptan los Gemini); el panel ya lo hace.
+- Reconocimiento de voz: `scribe_realtime`, calidad alta, idioma `es`, con ~180 palabras clave (pueblos de PR, marcas y modelos).
 
 ## 2. First message (primer saludo)
 
