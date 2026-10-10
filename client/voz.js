@@ -145,7 +145,68 @@
     marcarCambios();
   });
 
+  // ── Cómo escucha (paciencia, pausa, cerebro) y prompt ──────────────────────
+  const aviso = (msg, tipo = 'info') => typeof showToast === 'function' && showToast(msg, tipo);
+
+  function pintarAgente(a) {
+    $('agente-paciencia').value = a.paciencia || 'normal';
+    if (a.pausa_seg != null) $('agente-pausa').value = Math.round(a.pausa_seg);
+    $('agente-pausa-val').textContent = `${$('agente-pausa').value} s`;
+    $('agente-cerebro').value = a.modelo_cerebro || '';
+    const p = $('agente-prompt-estado');
+    p.textContent = a.prompt.igual_al_repo ? '✓ El bot usa las del repo' : `≠ Distintas al repo (bot ${a.prompt.caracteres_agente} / repo ${a.prompt.caracteres_repo} caracteres)`;
+    p.className = a.prompt.igual_al_repo ? 'ok' : 'distinto';
+    $('agente-estado').textContent = 'Ajustes actuales del bot';
+  }
+
+  async function cargarAgente() {
+    try {
+      const r = await fetch('/api/centro/agente');
+      if (!r.ok) throw new Error();
+      pintarAgente(await r.json());
+    } catch (_) {
+      $('agente-estado').textContent = 'No pude leer los ajustes del bot';
+    }
+  }
+
+  async function guardarAgente() {
+    if (!confirm('¿Aplicar la forma de escuchar al bot del teléfono?')) return;
+    const b = $('agente-guardar');
+    b.disabled = true;
+    try {
+      const r = await fetch('/api/centro/agente', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paciencia: $('agente-paciencia').value, pausa_seg: Number($('agente-pausa').value), modelo_cerebro: $('agente-cerebro').value.trim() }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'No se pudo guardar');
+      pintarAgente(await r.json());
+      aviso('✅ Escucha del bot actualizada');
+    } catch (err) {
+      aviso(err.message, 'error');
+    }
+    b.disabled = false;
+  }
+
+  async function subirPrompt() {
+    if (!confirm('¿Subir las instrucciones del repo al bot del teléfono? Las próximas llamadas ya las usan.')) return;
+    const b = $('agente-subir-prompt');
+    b.disabled = true;
+    try {
+      const r = await fetch('/api/centro/agente/prompt', { method: 'POST' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'No se pudo subir');
+      pintarAgente(await r.json());
+      aviso('✅ Instrucciones subidas al bot');
+    } catch (err) {
+      aviso(err.message, 'error');
+    }
+    b.disabled = false;
+  }
+
+  $('agente-pausa').addEventListener('input', () => { $('agente-pausa-val').textContent = `${$('agente-pausa').value} s`; });
+  $('agente-guardar').addEventListener('click', guardarAgente);
+  $('agente-subir-prompt').addEventListener('click', subirPrompt);
+
   // Se carga la primera vez que se abre la pestaña
   let cargado = false;
-  document.querySelector('[data-tab="voz"]').addEventListener('click', () => { if (!cargado) { cargado = true; cargar(); } });
+  document.querySelector('[data-tab="voz"]').addEventListener('click', () => { if (!cargado) { cargado = true; cargar(); cargarAgente(); } });
 })();

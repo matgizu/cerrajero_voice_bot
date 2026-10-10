@@ -1083,4 +1083,7 @@ body {
 .voz-guardar-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; position: sticky; bottom: 12px; }
 .voz-guardar-bar .voz-acciones { margin-top: 0; }
 #voz-cambios.con-cambios { color: var(--warning); font-weight: 600; }
+.voz-sep { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
+#agente-prompt-estado.ok { color: var(--success, #3ddc84); }
+#agente-prompt-estado.distinto { color: var(--warning); }
 @media (max-width: 900px) { .voz-grid { grid-template-columns: 1fr; } }

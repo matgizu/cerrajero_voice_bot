@@ -260,6 +260,38 @@
           <div id="voz-pronunciacion" class="voz-pron"></div>
           <button class="btn btn-ghost" id="voz-pron-agregar">+ Agregar palabra</button>
         </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>👂 Cómo escucha</h3><span class="panel-hint" id="agente-estado">Cargando…</span></div>
+          <div class="voz-ajuste">
+            <label for="agente-paciencia">Paciencia cuando el cliente hace una pausa</label>
+            <select id="agente-paciencia" class="voz-input">
+              <option value="patient">Paciente: deja terminar (teléfonos, direcciones)</option>
+              <option value="normal">Normal</option>
+              <option value="eager">Rápido: responde apenas hay silencio</option>
+            </select>
+          </div>
+          <div class="voz-ajuste">
+            <div class="voz-ajuste-head"><label for="agente-pausa">Silencio antes de retomar</label><strong id="agente-pausa-val">—</strong></div>
+            <input type="range" id="agente-pausa" min="1" max="20" step="1">
+            <div class="panel-hint">Segundos sin que el cliente hable antes de que el bot vuelva a hablar.</div>
+          </div>
+          <div class="voz-ajuste">
+            <label for="agente-cerebro">Modelo que piensa las respuestas</label>
+            <input type="text" id="agente-cerebro" class="voz-input" placeholder="ej. gemini-2.5-flash">
+          </div>
+          <div class="voz-acciones">
+            <button class="btn btn-primary" id="agente-guardar">💾 Guardar escucha</button>
+          </div>
+          <hr class="voz-sep">
+          <div class="voz-ajuste">
+            <div class="voz-ajuste-head"><label>Instrucciones del bot (prompt)</label><strong id="agente-prompt-estado">—</strong></div>
+            <div class="panel-hint">Las instrucciones viven en el repo (<code>docs/prompt-telefono.txt</code>). Aquí se suben al teléfono.</div>
+          </div>
+          <div class="voz-acciones">
+            <button class="btn btn-ghost" id="agente-subir-prompt">⬆ Subir instrucciones del repo al bot</button>
+          </div>
+        </div>
       </div>
     </div>
 

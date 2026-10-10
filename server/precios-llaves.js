@@ -232,6 +232,22 @@ function identificarLlave(ctx, p) {
   return { descripcion: esSi(p.sale_como_navaja) ? 'llave_navaja' : 'llave_con_botones' };
 }
 
+/**
+ * Preguntas mínimas para describir la llave cuando el vehículo no está en el
+ * Excel: cómo prende el carro y, si es con llave, si tiene botones. Devuelve
+ * null cuando ya se sabe lo suficiente para consultar al dueño.
+ */
+function preguntaBasicaLlave(p, servicio) {
+  const era = servicio === 'todas_perdidas' ? 'era' : 'es';
+  if (sinDato(p.prende_con_boton)) {
+    return { pregunta: '¿Ese carro prende con un botón, o metiendo la llave y dándole vuelta?', parametro: 'prende_con_boton (true si prende con botón, false si con llave)' };
+  }
+  if (esNo(p.prende_con_boton) && sinDato(p.tiene_botones)) {
+    return { pregunta: `¿La llave ${era} de metal con la cabecita negra nada más, o tiene los botoncitos para abrir y cerrar las puertas?`, parametro: 'tiene_botones (true/false)' };
+  }
+  return null;
+}
+
 // ── Negociación A → B → C ────────────────────────────────────────────────────
 
 /** Escalones de precio sin repetir: [A], [A,B] o [A,B,C]. */
@@ -264,9 +280,9 @@ function cotizarLlave(p = {}) {
   const contexto = () => [
     `Llave de carro (${{ todas_perdidas: 'llave nueva, no tiene ninguna', copia: 'copia, tiene una que funciona', programar: 'solo programar' }[servicio] || 'llave'})`,
     [marca, modelo, anio].filter(Boolean).join(' '),
-    p.prende_con_boton === true || p.prende_con_boton === 'true' ? 'prende con botón' : '',
-    p.tiene_botones === true || p.tiene_botones === 'true' ? 'llave con botones' : '',
-    p.sale_como_navaja === true || p.sale_como_navaja === 'true' ? 'tipo navaja' : '',
+    esSi(p.prende_con_boton) ? 'prende con botón (push to start)' : esNo(p.prende_con_boton) ? 'prende con llave' : '',
+    esSi(p.tiene_botones) ? 'llave con botones' : esNo(p.tiene_botones) ? 'llave de metal sin botones' : '',
+    esSi(p.sale_como_navaja) ? 'tipo navaja' : '',
   ].filter(Boolean).join(' · ');
   const confirma = texto => ({
     exito: true, confirma_cerrajero: true, sin_precio: true, precio: null, texto,
@@ -309,6 +325,11 @@ function cotizarLlave(p = {}) {
   const nombreVehiculo = `${DATOS.nombres[marcaKey] || marca} ${DATOS.nombres[`${marcaKey}|${modeloKey}`] || modelo} ${anioN}`;
 
   if (ctx.tipos.size === 0) {
+    // El modelo no está en el Excel (Hyundai Kona 2022 en la prueba del 9 de
+    // octubre): igual hay que saber qué llave es antes de consultar, porque
+    // sin eso el dueño no puede dar precio y tiene que preguntar de vuelta.
+    const basica = preguntaBasicaLlave(p, servicio);
+    if (basica) return { ...pregunta(basica.pregunta, basica.parametro), vehiculo: nombreVehiculo };
     return confirma(`Para el ${nombreVehiculo} la llave se la cotiza el cerrajero directamente; en un par de minutos le llama.`);
   }
 

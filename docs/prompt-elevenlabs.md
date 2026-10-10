@@ -1,6 +1,6 @@
 # Configuración del agente de ElevenLabs (vía telefónica)
 
-> **Fuente única del prompt:** [`prompt-telefono.txt`](prompt-telefono.txt). Ese archivo es el que tiene el agente de ElevenLabs y el que usa la versión web (`server/gemini.js` lo lee). Si cambias el prompt, edita ese archivo y súbelo al agente por API.
+> **Fuente única del prompt:** [`prompt-telefono.txt`](prompt-telefono.txt). Ese archivo es el que tiene el agente de ElevenLabs y el que usa la versión web (`server/gemini.js` lo lee). Si cambias el prompt, edita ese archivo y súbelo al agente desde el panel: pestaña **Voz del bot → Cómo escucha → "Subir instrucciones del repo al bot"** (ahí mismo se ve si el que corre es el del repo). En esa sección también se ajustan la paciencia al escuchar (turn-taking) y el modelo LLM del agente.
 
 > Cambios 2026-10-01: el negocio se presenta como "Tu Cerrajero Puerto Rico"; trato de usted con registro profesional (sin expresiones de la calle), entiende el acento boricua sin corregir al cliente, empatía corta, pide los datos con "déjeme saber" / "¿me regala…?".
 

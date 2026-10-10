@@ -363,9 +363,14 @@ app.post('/api/tools/consultar_dueno', safe(async (req, res) => {
   }, urlPublica(req));
   if (!r.activa) return res.json({ result: await instruccionSinPrecio(params.resumen || '') });
   res.json({
-    result: `Consulta enviada (consulta_id: ${r.consulta.id}). Si todavía no se lo dijiste, dile al cliente: "Deme un momento en la línea, por favor, que ya le estoy consultando el precio." Luego llama a esperar_respuesta_dueno con consulta_id ${r.consulta.id}.`,
+    result: `Consulta enviada (consulta_id: ${r.consulta.id}). Si todavía no se lo dijiste, dile al cliente: "Deme un momento en la línea, por favor, que ya le estoy consultando el precio." Luego llama a esperar_respuesta_dueno con consulta_id ${r.consulta.id}. ${SIN_PRECIO_AUN}`,
   });
 }));
+
+// En la llamada del 9 de octubre el agente dijo un precio inventado ("el dueño
+// me confirma 285") a los 11 s de mandar la consulta, 70 s antes de que el
+// dueño contestara. Cada respuesta de estas herramientas se lo recuerda.
+const SIN_PRECIO_AUN = 'TODAVÍA NO HAY PRECIO: no digas ninguna cifra ni digas que ya te confirmaron; solo puedes dar el precio cuando esperar_respuesta_dueno te diga "Ya tenemos la respuesta".';
 
 app.post('/api/tools/esperar_respuesta_dueno', safe(async (req, res) => {
   const params = req.body?.parameters || req.body || {};
@@ -373,10 +378,17 @@ app.post('/api/tools/esperar_respuesta_dueno', safe(async (req, res) => {
   const r = await consultas.esperarRespuesta(id);
   console.log(`📥 esperar_respuesta_dueno ${id}: ${r.estado} (${r.segundos} s)`);
   if (r.estado === 'respondida') {
-    return res.json({ result: `Ya tenemos la respuesta: "${r.respuesta}". Agradécele la espera y díselo al cliente con tus palabras, en frases cortas y tratándolo de usted (no menciones al dueño ni el WhatsApp). Si es un precio, ese es el precio que cotizas. Después sigue con el flujo normal (pueblo, dirección, nombre y teléfono).` });
+    // El dueño a veces no contesta con un precio sino con una pregunta para el
+    // cliente ("pregunta si prende por llave o botón"): hay que hacerla y
+    // volver a consultar, no seguir como si ya hubiera precio.
+    const esPrecio = /\d/.test(String(r.respuesta || ''));
+    if (!esPrecio) {
+      return res.json({ result: `Ya tenemos la respuesta, pero NO es un precio, es una indicación: "${r.respuesta}". Si es una pregunta para el cliente, hazla con tus palabras (tratándolo de usted, sin mencionar al dueño), y con lo que te conteste vuelve a llamar a consultar_dueno con el mismo resumen más ese dato, y después a esperar_respuesta_dueno. Si es otra instrucción, síguela. ${SIN_PRECIO_AUN}` });
+    }
+    return res.json({ result: `Ya tenemos la respuesta: "${r.respuesta}". Agradécele la espera y díselo al cliente con tus palabras, en frases cortas y tratándolo de usted (no menciones al dueño ni el WhatsApp). Ese es el precio que cotizas, dilo tal cual. Después sigue con el flujo normal (pueblo, dirección, nombre y teléfono).` });
   }
   if (r.estado === 'pendiente') {
-    return res.json({ result: `Todavía sin respuesta (${r.segundos} s). Dile al cliente algo como: "Gracias por su paciencia en la línea. Deme otro momentito, por favor, que ya casi termino." (varía la frase cada vez) y vuelve a llamar a esperar_respuesta_dueno con consulta_id ${id}.` });
+    return res.json({ result: `Todavía sin respuesta (${r.segundos} s). Dile al cliente algo como: "Gracias por su paciencia en la línea. Deme otro momentito, por favor, que ya casi termino." (varía la frase cada vez) y vuelve a llamar a esperar_respuesta_dueno con consulta_id ${id}. ${SIN_PRECIO_AUN}` });
   }
   res.json({ result: 'No llegó la respuesta a tiempo. Dile al cliente: "Gracias por esperar. Para no tenerlo más tiempo en la línea, le tomo los datos y en breve lo llamamos para confirmarle el costo exacto." Sigue tomando los datos y al guardar pon en notas "precio por confirmar".' });
 }));
@@ -548,6 +560,21 @@ app.post('/api/centro/voz/probar', safe(async (req, res) => {
   const mp3 = await voz.probarVoz(req.body || {});
   res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' });
   res.send(mp3);
+}));
+
+// Escucha (paciencia / pausa), cerebro y prompt del agente
+app.get('/api/centro/agente', safe(async (_req, res) => {
+  res.json(await voz.leerAgente());
+}));
+app.put('/api/centro/agente', safe(async (req, res) => {
+  try {
+    res.json(await voz.guardarEscucha(req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}));
+app.post('/api/centro/agente/prompt', safe(async (_req, res) => {
+  res.json(await voz.subirPrompt());
 }));
 
 // Panel: interruptor, configuración y respuestas a consultas

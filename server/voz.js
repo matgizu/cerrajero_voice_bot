@@ -175,4 +175,66 @@ async function probarVoz({ texto, velocidad, estabilidad, parecido, tono_calido,
   return Buffer.from(await r.arrayBuffer());
 }
 
-module.exports = { leerVoz, guardarVoz, probarVoz };
+// ── Escucha, cerebro y prompt del agente ────────────────────────────────────
+//  La paciencia al escuchar (turn-taking) es lo que decide cuánto espera el
+//  bot cuando el cliente hace una pausa. En la prueba del 9 de octubre
+//  interrumpía al cliente a cada grupito de dígitos del teléfono.
+//  El prompt vive en docs/prompt-telefono.txt; desde aquí se sube al agente
+//  para no copiarlo a mano en el dashboard y saber si el que corre es el del repo.
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const RUTA_PROMPT = path.join(__dirname, '../docs/prompt-telefono.txt');
+const PACIENCIA = ['patient', 'normal', 'eager'];
+const LIMITE_PAUSA = [1, 30]; // segundos de silencio antes de que el bot retome
+
+const hash = t => crypto.createHash('sha1').update(String(t || '').trim()).digest('hex').slice(0, 10);
+const promptDelRepo = () => fs.readFileSync(RUTA_PROMPT, 'utf8');
+
+async function leerAgente() {
+  const a = await elJson(`/convai/agents/${agenteId()}`);
+  const cc = a.conversation_config || {};
+  const enAgente = cc.agent?.prompt?.prompt || '';
+  const enRepo = promptDelRepo();
+  return {
+    modelo_cerebro: cc.agent?.prompt?.llm || null,
+    paciencia: cc.turn?.turn_eagerness || 'normal',
+    pausa_seg: cc.turn?.turn_timeout ?? null,
+    prompt: {
+      igual_al_repo: hash(enAgente) === hash(enRepo),
+      caracteres_agente: enAgente.length,
+      caracteres_repo: enRepo.length,
+    },
+  };
+}
+
+async function guardarEscucha({ paciencia, pausa_seg, modelo_cerebro } = {}) {
+  const turn = {};
+  if (paciencia != null) {
+    if (!PACIENCIA.includes(paciencia)) throw new Error(`Paciencia inválida: ${paciencia}`);
+    turn.turn_eagerness = paciencia;
+  }
+  if (pausa_seg != null) turn.turn_timeout = acotar(pausa_seg, LIMITE_PAUSA);
+  const agent = {};
+  if (typeof modelo_cerebro === 'string' && modelo_cerebro.trim()) agent.prompt = { llm: modelo_cerebro.trim() };
+  await el(`/convai/agents/${agenteId()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_config: { ...(Object.keys(turn).length ? { turn } : {}), ...(Object.keys(agent).length ? { agent } : {}) } }),
+  });
+  return leerAgente();
+}
+
+async function subirPrompt() {
+  const prompt = promptDelRepo().trim();
+  await el(`/convai/agents/${agenteId()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_config: { agent: { prompt: { prompt } } } }),
+  });
+  return leerAgente();
+}
+
+module.exports = { leerVoz, guardarVoz, probarVoz, leerAgente, guardarEscucha, subirPrompt };
