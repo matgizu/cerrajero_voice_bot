@@ -1,8 +1,20 @@
 // Service worker de la app del dueño: recibe las notificaciones push aunque la
 // página esté cerrada y abre la consulta al tocarlas.
 
+// Súbele el número con cada cambio de la app: el navegador ve que sw.js cambió,
+// instala esta versión y al activarse recarga las pantallas abiertas (incluida
+// una versión vieja de la página que no sepa actualizarse sola).
+const VERSION = 2;
+
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  await self.clients.claim();
+  const abiertas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const c of abiertas) {
+    if (!new URL(c.url).pathname.startsWith('/dueno')) continue;
+    try { await c.navigate(c.url); } catch (_) { c.postMessage({ tipo: 'recargar', version: VERSION }); }
+  }
+})()));
 
 self.addEventListener('push', event => {
   let d = {};

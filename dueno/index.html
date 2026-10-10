@@ -111,6 +111,7 @@
 
   <div id="app" hidden>
     <div id="avisos"></div>
+    <div id="probar-bot"></div>
     <h2>Pendientes</h2>
     <div id="pendientes"></div>
     <h2>Recientes</h2>
@@ -235,6 +236,41 @@ function pintarAvisos() {
   c.innerHTML = `<div class="aviso alerta"><strong>🔔 Activa los avisos</strong>Así te suena el celular cuando un cliente espera un precio, aunque no tengas la app abierta.
     <div class="fila-botones"><button class="btn btn-acento" id="activar">Activar avisos</button></div></div>`;
   $('activar').onclick = activarAvisos;
+}
+
+// ── Probar el bot: que me llame ──────────────────────────────────────────────
+async function pintarProbarBot() {
+  const c = $('probar-bot');
+  let numeros = [];
+  try { numeros = await api('/numeros-prueba'); } catch (_) { c.innerHTML = ''; return; }
+  if (!numeros.length) { c.innerHTML = ''; return; }
+  c.innerHTML = `<div class="aviso ok"><strong>📞 Probar el bot</strong>Toca tu número y el bot te llama en unos segundos. Atiende como si fueras un cliente.
+    <div class="fila-botones">${numeros.map(n => `<button class="btn btn-borde" data-llamar="${esc(n.numero)}">Que me llame al ${esc(fmtTel(n.numero))}</button>`).join('')}</div></div>`;
+  c.querySelectorAll('[data-llamar]').forEach(b => b.onclick = async () => {
+    c.querySelectorAll('button').forEach(x => x.disabled = true);
+    try {
+      await api('/llamar-prueba', { method:'POST', body:JSON.stringify({ numero: b.dataset.llamar }) });
+      toast('📞 Llamando… te va a sonar el celular en unos segundos', 5000);
+    } catch (e) { toast(e.message, 4000); }
+    setTimeout(() => c.querySelectorAll('button').forEach(x => x.disabled = false), 15000);
+  });
+}
+
+// ── Actualización automática ─────────────────────────────────────────────────
+// Si el servidor cambió de versión (nuevo despliegue), la app se recarga sola
+// al volver a primer plano o al minuto. El dueño nunca tiene que reinstalarla.
+function vigilarVersion() {
+  const revisar = async () => {
+    if (document.hidden || grabacion) return;
+    try {
+      const r = await fetch('/dueno/api/version', { cache:'no-store' });
+      const { version } = await r.json();
+      if (estado?.version && version && version !== estado.version) location.reload();
+    } catch (_) {}
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+  window.addEventListener('focus', revisar);
+  setInterval(revisar, 60_000);
 }
 
 // ── Consultas ────────────────────────────────────────────────────────────────
@@ -601,13 +637,21 @@ async function iniciar() {
   $('app').hidden = false;
   // La lista tiene que funcionar aunque fallen los avisos (navegador sin soporte, etc.)
   cargar();
+  pintarProbarBot();
+  vigilarVersion();
   if (soportaPush) {
     try {
-      await navigator.serviceWorker.register('/dueno/sw.js', { scope:'/dueno/' });
+      const reg = await navigator.serviceWorker.register('/dueno/sw.js', { scope:'/dueno/' });
+      reg.update().catch(() => {});   // busca una versión nueva cada vez que se abre
       navigator.serviceWorker.addEventListener('message', e => {
+        if (e.data?.tipo === 'recargar') { location.reload(); return; }
         if (e.data?.tipo === 'abrir' && e.data.url) { location.hash = new URL(e.data.url, location.href).hash; }
         cargar();
       });
+      // Entró un service worker nuevo (despliegue): la página se recarga con él.
+      // En la primera instalación no había controlador: ahí no hace falta recargar.
+      const habiaControlador = Boolean(navigator.serviceWorker.controller);
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (habiaControlador && !grabacion) location.reload(); });
       // Si el navegador renovó la suscripción, se vuelve a guardar
       if (Notification.permission === 'granted') {
         const reg = await navigator.serviceWorker.ready;

@@ -489,8 +489,36 @@ for (const archivo of ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-51
   });
 }
 
+// Versión de la app del dueño: cambia con cada despliegue (commit de Railway).
+// La página la compara al volver a primer plano y se recarga sola si cambió,
+// así el dueño nunca tiene que reinstalar la PWA ni saber recargarla.
+const VERSION_APP = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || String(Date.now());
+
 app.get('/dueno/api/estado', safe(async (_req, res) => {
-  res.json({ ok: true, vapid: await dueno.clavePublica() });
+  res.json({ ok: true, vapid: await dueno.clavePublica(), version: VERSION_APP });
+}));
+app.get('/dueno/api/version', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ version: VERSION_APP });
+});
+
+// "Que el bot me llame": el dueño prueba el bot desde su app sin depender del
+// panel. Solo a números verificados en Twilio y como mucho una llamada por
+// minuto (la ruta no tiene contraseña).
+let ultimaLlamadaDueno = 0;
+app.get('/dueno/api/numeros-prueba', safe(async (_req, res) => {
+  res.json(await centro.numerosPrueba());
+}));
+app.post('/dueno/api/llamar-prueba', safe(async (req, res) => {
+  const espera = 60_000 - (Date.now() - ultimaLlamadaDueno);
+  if (espera > 0) return res.status(429).json({ error: `Espera ${Math.ceil(espera / 1000)} s para volver a llamar` });
+  try {
+    const r = await centro.llamarPrueba(String(req.body?.numero || ''));
+    ultimaLlamadaDueno = Date.now();
+    res.json(r);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 }));
 app.get('/dueno/api/consultas', safe(async (_req, res) => {
   res.json(await consultas.listarConsultas(20));
