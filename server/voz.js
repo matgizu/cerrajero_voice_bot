@@ -23,7 +23,7 @@ async function el(ruta, opciones = {}) {
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY || '', ...(opciones.headers || {}) },
   });
   const texto = await r.text();
-  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${texto.slice(0, 200)}`);
+  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${texto.slice(0, 1500)}`);
   return texto;
 }
 const elJson = async (ruta, opciones) => JSON.parse(await el(ruta, opciones));
@@ -200,6 +200,9 @@ async function leerAgente() {
   const enRepo = promptDelRepo();
   return {
     modelo_cerebro: cc.agent?.prompt?.llm || null,
+    temperatura: cc.agent?.prompt?.temperature ?? null,
+    idioma: cc.agent?.language || null,
+    transcripcion: cc.asr || null,   // proveedor / calidad / formato del reconocimiento de voz
     paciencia: cc.turn?.turn_eagerness || 'normal',
     pausa_seg: cc.turn?.turn_timeout ?? null,
     prompt: {
