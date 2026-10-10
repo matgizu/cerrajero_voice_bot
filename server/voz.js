@@ -221,7 +221,9 @@ async function guardarEscucha({ paciencia, pausa_seg, modelo_cerebro } = {}) {
   }
   if (pausa_seg != null) turn.turn_timeout = acotar(pausa_seg, LIMITE_PAUSA);
   const agent = {};
-  if (typeof modelo_cerebro === 'string' && modelo_cerebro.trim()) agent.prompt = { llm: modelo_cerebro.trim() };
+  // reasoning_effort solo lo aceptan los Gemini; si queda puesto, ElevenLabs
+  // rechaza el cambio a cualquier otro modelo ("Reasoning effort is not supported").
+  if (typeof modelo_cerebro === 'string' && modelo_cerebro.trim()) agent.prompt = { llm: modelo_cerebro.trim(), reasoning_effort: null };
   await el(`/convai/agents/${agenteId()}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
