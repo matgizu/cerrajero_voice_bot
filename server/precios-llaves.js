@@ -283,6 +283,7 @@ function cotizarLlave(p = {}) {
     esSi(p.prende_con_boton) ? 'prende con botón (push to start)' : esNo(p.prende_con_boton) ? 'prende con llave' : '',
     esSi(p.tiene_botones) ? 'llave con botones' : esNo(p.tiene_botones) ? 'llave de metal sin botones' : '',
     esSi(p.sale_como_navaja) ? 'tipo navaja' : '',
+    TESLA[String(p.llave_tesla || '').toLowerCase()] ? `abre con ${{ tarjeta: 'tarjeta', telefono: 'el teléfono', control: 'el control' }[String(p.llave_tesla).toLowerCase()]}` : '',
   ].filter(Boolean).join(' · ');
   const confirma = texto => ({
     exito: true, confirma_cerrajero: true, sin_precio: true, precio: null, texto,
@@ -323,6 +324,16 @@ function cotizarLlave(p = {}) {
   const modeloKey = resolverModelo(marcaKey, modelo);
   const ctx = { marcaKey, modeloKey, anio: anioN, servicio, tipos: tiposDelVehiculo(marcaKey, modeloKey, anioN) };
   const nombreVehiculo = `${DATOS.nombres[marcaKey] || marca} ${DATOS.nombres[`${marcaKey}|${modeloKey}`] || modelo} ${anioN}`;
+
+  // Cliente 2026-10-10: Tesla siempre se consulta con el dueño, aunque el Excel
+  // tenga precio. Solo se averigua primero con qué abre el carro, para que el
+  // dueño pueda cotizar sin preguntar de vuelta.
+  if (marcaKey === 'tesla') {
+    if (!TESLA[String(p.llave_tesla || '').toLowerCase()]) {
+      return { ...pregunta('¿Usted abre el Tesla con la tarjeta, con el teléfono o con el controlito?', 'llave_tesla (tarjeta | telefono | control)'), vehiculo: nombreVehiculo };
+    }
+    return confirma(`Para el ${nombreVehiculo} el precio se lo confirmamos.`);
+  }
 
   if (ctx.tipos.size === 0) {
     // El modelo no está en el Excel (Hyundai Kona 2022 en la prueba del 9 de

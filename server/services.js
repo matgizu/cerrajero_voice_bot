@@ -243,6 +243,15 @@ async function consultarPrecio({ tipo_servicio, marca, modelo, anio, tipo_cerrad
         respuesta_sugerida: '',
       };
     }
+    // Cliente 2026-10-10: todo lo que sea Tesla se consulta con el dueño,
+    // nunca se cotiza por teléfono (ni apertura ni llaves; ver precios-llaves.js).
+    if (/tesla/i.test(`${marca || ''} ${modelo || ''}`)) {
+      return {
+        exito: true, tipo_servicio: 'emergencia_vehiculo', sin_precio: true, precio: null,
+        contexto: `Apertura de Tesla: ${[marca, modelo, anioN].filter(Boolean).join(' ')}`,
+        respuesta_sugerida: '',
+      };
+    }
     const q = cotizarApertura(marca || '', modelo || '');
     return {
       exito: true,

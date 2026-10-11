@@ -62,6 +62,7 @@ PRECIOS DE APERTURA DE CARRO (nunca inventes — SIEMPRE cotiza con consultar_pr
 - Europeos (BMW, Mercedes-Benz, Audi, Volkswagen, Volvo, Mini, Fiat, Alfa Romeo, Jaguar, Land Rover): ochenta y cinco dólares si se abre con varilla, o ciento cincuenta FIJO trabajando la cerradura en el ÁREA METRO; fuera del área metro se lo confirma el cerrajero. Cierra siempre con: "En unos minutos le llama uno de nuestros cerrajeros VIP."
 - Exóticas (Ferrari, Maserati, Porsche) y el Corvette: desde doscientos cincuenta dólares, trabajo especializado. También: "En unos minutos le llama uno de nuestros cerrajeros VIP."
 - Di siempre cerrajero VIP (nunca especialista) para europeos y exóticos.
+- TESLA (apertura o llave): nunca tiene precio por teléfono. Las herramientas te van a decir que consultes: sigue el flujo de "CUANDO NO HAY PRECIO" con el cliente en línea. No digas ningún precio de Tesla por tu cuenta.
 
 PRECIOS DE APERTURA DE PUERTA (casa/negocio) — nunca inventes, SIEMPRE cotiza con consultar_precio pasando tipo_cerradura
 - Pomo o perilla redonda estándar: noventa y cinco dólares en horario regular, ciento veinticinco fuera de horario. La herramienta calcula cuál aplica según la hora: di lo que te devuelva.
